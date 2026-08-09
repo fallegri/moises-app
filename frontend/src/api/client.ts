@@ -71,7 +71,17 @@ export async function selectOption(projectId: string, data: SelectOptionRequest)
 
 export async function validateCoherence(projectId: string): Promise<ValidationResult> {
   const response = await api.post(`/api/workflow/${projectId}/validate`)
-  return response.data
+  const data = response.data
+  // Map backend response shape { is_coherent, message } to frontend ValidationResult
+  const isValid = data.is_coherent ?? false
+  const message = data.message || ''
+  return {
+    is_valid: isValid,
+    score: isValid ? 100 : 0,
+    message: message,
+    issues: !isValid && message ? [message] : [],
+    suggestions: [],
+  }
 }
 
 // State of Art
@@ -106,6 +116,42 @@ export async function generateDocument(projectId: string, chapter: string): Prom
 export function getDocumentDownloadUrl(projectId: string, chapter: string): string {
   const baseUrl = import.meta.env.VITE_API_URL || ''
   return `${baseUrl}/api/documents/${projectId}/download/${chapter}`
+}
+
+// Variables
+export interface AddVariableData {
+  name: string
+  type: string
+  conceptual_definition: string
+  operational_definition: string
+  dimensions?: string[]
+  indicators?: string[]
+}
+
+export async function addVariable(projectId: string, data: AddVariableData): Promise<{ message: string; total_variables: number }> {
+  const response = await api.post(`/api/workflow/${projectId}/variables/add`, data)
+  return response.data
+}
+
+export async function removeVariable(projectId: string, name: string): Promise<{ message: string; total_variables: number }> {
+  const response = await api.delete(`/api/workflow/${projectId}/variables/remove`, {
+    data: { name },
+  })
+  return response.data
+}
+
+export interface VariableData {
+  name: string
+  type: string
+  conceptual_definition: string
+  operational_definition: string
+  dimensions: string[]
+  indicators: string[]
+}
+
+export async function listVariables(projectId: string): Promise<{ variables: VariableData[]; total: number }> {
+  const response = await api.get(`/api/workflow/${projectId}/variables`)
+  return response.data
 }
 
 // Knowledge Base

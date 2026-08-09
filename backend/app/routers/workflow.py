@@ -258,3 +258,76 @@ async def set_no_more_studies(project_id: str, request: SetNoMoreStudiesRequest)
         "message": "Flag updated successfully",
         **result,
     }
+
+
+class AddVariableRequest(BaseModel):
+    """Request body for adding a variable to the conceptualization matrix."""
+    name: str
+    type: str
+    conceptual_definition: str
+    operational_definition: str
+    dimensions: Optional[list[str]] = None
+    indicators: Optional[list[str]] = None
+
+
+class RemoveVariableRequest(BaseModel):
+    """Request body for removing a variable by name."""
+    name: str
+
+
+@router.post("/{project_id}/variables/add")
+async def add_variable(project_id: str, request: AddVariableRequest):
+    """Add a variable to the methodological framework's variable conceptualization matrix."""
+    state = _get_or_create_workflow(project_id)
+    project = _projects[project_id]
+
+    from app.models.research_project import Variable
+    variable = Variable(
+        name=request.name,
+        type=request.type,
+        conceptual_definition=request.conceptual_definition,
+        operational_definition=request.operational_definition,
+        dimensions=request.dimensions or [],
+        indicators=request.indicators or [],
+    )
+    project.methodological_framework.variable_matrix.variables.append(variable)
+    _persist_project(project)
+    return {
+        "message": "Variable added successfully",
+        "total_variables": len(project.methodological_framework.variable_matrix.variables),
+    }
+
+
+@router.delete("/{project_id}/variables/remove")
+async def remove_variable(project_id: str, request: RemoveVariableRequest):
+    """Remove a variable from the conceptualization matrix by name."""
+    state = _get_or_create_workflow(project_id)
+    project = _projects[project_id]
+
+    variables = project.methodological_framework.variable_matrix.variables
+    original_count = len(variables)
+    project.methodological_framework.variable_matrix.variables = [
+        v for v in variables if v.name != request.name
+    ]
+    removed = original_count - len(project.methodological_framework.variable_matrix.variables)
+    if removed == 0:
+        raise HTTPException(status_code=404, detail=f"Variable '{request.name}' not found")
+
+    _persist_project(project)
+    return {
+        "message": "Variable removed successfully",
+        "total_variables": len(project.methodological_framework.variable_matrix.variables),
+    }
+
+
+@router.get("/{project_id}/variables")
+async def list_variables(project_id: str):
+    """Get all variables in the conceptualization matrix."""
+    _get_or_create_workflow(project_id)
+    project = _projects[project_id]
+
+    variables = project.methodological_framework.variable_matrix.variables
+    return {
+        "variables": [v.model_dump() for v in variables],
+        "total": len(variables),
+    }

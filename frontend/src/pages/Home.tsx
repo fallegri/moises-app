@@ -151,10 +151,10 @@ export default function Home() {
                   <div className="flex-1 max-w-[200px] h-1.5 bg-slate-200 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-blue-500 rounded-full"
-                      style={{ width: `${project.progress}%` }}
+                      style={{ width: `${project.progress || 0}%` }}
                     />
                   </div>
-                  <span className="text-xs text-slate-400">{project.progress}%</span>
+                  <span className="text-xs text-slate-400">{project.progress || 0}%</span>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-4">

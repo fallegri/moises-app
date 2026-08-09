@@ -38,16 +38,15 @@ export interface WorkflowStatus {
 export interface ResearchProject {
   id: string
   title: string
-  description: string
+  description?: string
   created_at: string
   updated_at: string
-  current_phase: PhaseId
   progress: number
 }
 
 export interface CreateProjectRequest {
   title: string
-  description: string
+  description?: string
 }
 
 export interface SubmitInputRequest {
@@ -62,6 +61,7 @@ export interface SelectOptionRequest {
 export interface ValidationResult {
   is_valid: boolean
   score: number
+  message: string
   issues: string[]
   suggestions: string[]
 }

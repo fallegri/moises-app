@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Fix 4 integration issues from v3 review: document generation 422, coherence validation shape mismatch, VariableMatrix no persistence, Home page missing progress/description fields",
+  "status": "in_progress",
+  "steps": [
+    "Make GenerateDocumentRequest.content optional and auto-derive from project phase_data when not provided",
+    "Fix CoherenceValidation component to map backend response (is_coherent/message) to UI display",
+    "Add backend endpoint for variable persistence and wire VariableMatrix component",
+    "Add description and progress fields to ResearchProject backend model and accept description in CreateProjectRequest"
+  ],
+  "acceptance_criteria": [
+    "generateDocument endpoint accepts requests without content field and auto-generates from project data",
+    "CoherenceValidation component renders correctly with backend response shape",
+    "VariableMatrix data persists via backend API",
+    "Home page renders progress bar and description from backend data",
+    "All 65 backend tests pass",
+    "All 10 frontend tests pass"
+  ],
+  "verification": [
+    "export PATH=\"/root/.pyenv/versions/3.11.15/bin:$PATH\" && cd /projects/sandbox/moises-app/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/moises-app/frontend && npx vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

@@ -44,7 +44,13 @@ export default function CoherenceValidation({ result }: CoherenceValidationProps
         </div>
       </div>
 
-      {result.issues.length > 0 && (
+      {result.message && (
+        <div className="mb-3">
+          <p className="text-xs text-slate-600">{result.message}</p>
+        </div>
+      )}
+
+      {result.issues && result.issues.length > 0 && (
         <div className="mb-3">
           <h4 className="text-xs font-semibold text-red-700 mb-1">Problemas encontrados:</h4>
           <ul className="space-y-1">
@@ -58,7 +64,7 @@ export default function CoherenceValidation({ result }: CoherenceValidationProps
         </div>
       )}
 
-      {result.suggestions.length > 0 && (
+      {result.suggestions && result.suggestions.length > 0 && (
         <div>
           <h4 className="text-xs font-semibold text-blue-700 mb-1">Sugerencias:</h4>
           <ul className="space-y-1">

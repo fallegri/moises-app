@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 from enum import Enum
 import uuid
 
@@ -127,6 +127,7 @@ class ResearchProject(BaseModel):
     """Complete research project model."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: Optional[str] = None
+    description: Optional[str] = None
     status: ProjectStatus = ProjectStatus.ACTIVE
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -150,3 +151,35 @@ class ResearchProject(BaseModel):
     additional_literature: list[str] = Field(
         default_factory=list, description="Paths to additional literature files uploaded"
     )
+
+    @computed_field
+    @property
+    def progress(self) -> int:
+        """Compute progress as percentage of phases with data (out of 12 total phases)."""
+        total_phases = 12
+        completed = 0
+        if self.problem_description is not None:
+            completed += 1
+        if self.suggested_instruments:
+            completed += 1
+        if self.selected_problem is not None:
+            completed += 1
+        if self.research_question is not None:
+            completed += 1
+        if self.introduction is not None:
+            completed += 1
+        if self.state_of_art.studies:
+            completed += 1
+        if self.specific_problems:
+            completed += 1
+        if self.research_objective is not None:
+            completed += 1
+        if self.specific_objectives:
+            completed += 1
+        if self.methodological_framework.research_type is not None:
+            completed += 1
+        if self.methodological_framework.variable_matrix.variables:
+            completed += 1
+        if self.methodological_framework.instruments:
+            completed += 1
+        return int((completed / total_phases) * 100)

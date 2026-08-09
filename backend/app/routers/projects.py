@@ -40,6 +40,7 @@ def _persist_project(project: ResearchProject):
 class CreateProjectRequest(BaseModel):
     """Request body for creating a new project."""
     title: Optional[str] = None
+    description: Optional[str] = None
 
 
 class UpdateProjectRequest(BaseModel):
@@ -51,7 +52,7 @@ class UpdateProjectRequest(BaseModel):
 @router.post("/", response_model=ResearchProject)
 async def create_project(request: CreateProjectRequest):
     """Create a new research project."""
-    project = ResearchProject(title=request.title)
+    project = ResearchProject(title=request.title, description=request.description)
     _projects[project.id] = project
     _persist_project(project)
     return project

@@ -43,7 +43,7 @@ export default function PhaseContent({
 
       {/* Variable Matrix (methodological framework) */}
       {phase === 'methodological_framework' && (
-        <VariableMatrix />
+        <VariableMatrix projectId={projectId} />
       )}
 
       {/* Tasks */}
