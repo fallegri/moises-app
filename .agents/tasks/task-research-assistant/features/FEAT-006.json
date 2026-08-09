@@ -2,7 +2,7 @@
   "id": "FEAT-006",
   "type": "feat",
   "description": "UI-based AI configuration - Add backend endpoint and frontend form to configure AI API key, base URL, and model from the UI instead of .env",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create backend/app/routers/ai_config.py with GET and PUT endpoints for AI configuration (api_key, base_url, model) persisted to JSON file in storage",
     "Register the new ai_config router in backend/app/main.py",
@@ -27,5 +27,5 @@
     "cd /projects/sandbox/moises-app/frontend && npm run build"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 75 backend tests pass (65 existing + 10 new for ai_config). All 10 frontend tests pass. Frontend production build succeeds. The AIService now resolves config in priority order: explicit constructor params > runtime config from UI (persisted JSON) > .env settings. The config file is stored at storage/ai_config.json. The Settings page is accessible via /settings route from the navigation bar."
 }
