@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "fix",
   "description": "Fix 4 integration issues from v3 review: document generation 422, coherence validation shape mismatch, VariableMatrix no persistence, Home page missing progress/description fields",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Make GenerateDocumentRequest.content optional and auto-derive from project phase_data when not provided",
     "Fix CoherenceValidation component to map backend response (is_coherent/message) to UI display",
@@ -22,5 +22,5 @@
     "cd /projects/sandbox/moises-app/frontend && npx vitest run"
   ],
   "blocked_reason": null,
-  "findings": null
+  "findings": "All 65 backend tests pass. All 10 frontend tests pass. Frontend build succeeds cleanly. The document generation endpoint now accepts empty body (Optional[GenerateDocumentRequest] = None) and derives content from project phase data. The computed progress field uses @computed_field from pydantic so it serializes automatically in JSON responses."
 }
