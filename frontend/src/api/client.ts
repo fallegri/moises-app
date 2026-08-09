@@ -6,6 +6,8 @@ import type {
   SelectOptionRequest,
   ValidationResult,
   KnowledgeSearchResult,
+  AIConfig,
+  AIConfigUpdate,
 } from '../types/research'
 
 const api = axios.create({
@@ -166,5 +168,16 @@ export async function uploadKnowledge(file: File): Promise<{ message: string }> 
   const response = await api.post('/api/knowledge/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
+  return response.data
+}
+
+// AI Configuration
+export async function getAIConfig(): Promise<AIConfig> {
+  const response = await api.get('/api/ai-config')
+  return response.data
+}
+
+export async function updateAIConfig(config: AIConfigUpdate): Promise<AIConfig> {
+  const response = await api.put('/api/ai-config', config)
   return response.data
 }

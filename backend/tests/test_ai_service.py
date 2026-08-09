@@ -19,9 +19,12 @@ def mock_openai_response():
 @pytest.fixture
 def ai_service(mock_openai_response):
     """Create an AI service with mocked client."""
-    with patch("app.services.ai_service.OpenAI") as mock_openai_class:
+    with patch("app.services.ai_service.OpenAI") as mock_openai_class, \
+         patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
         mock_client = MagicMock()
         mock_client.chat.completions.create.return_value = mock_openai_response
+        mock_client.api_key = "test-key"
+        mock_client.base_url = "https://integrate.api.nvidia.com/v1"
         mock_openai_class.return_value = mock_client
 
         service = AIService(
@@ -39,14 +42,16 @@ class TestAIService:
 
     def test_initialization_with_defaults(self):
         """Test AI service initializes with default config."""
-        with patch("app.services.ai_service.OpenAI"):
+        with patch("app.services.ai_service.OpenAI"), \
+             patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
             service = AIService(api_key="test-key")
             assert service.api_key == "test-key"
             assert "nvidia" in service.base_url or service.base_url != ""
 
     def test_initialization_with_custom_params(self):
         """Test AI service initializes with custom parameters."""
-        with patch("app.services.ai_service.OpenAI"):
+        with patch("app.services.ai_service.OpenAI"), \
+             patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
             service = AIService(
                 api_key="custom-key",
                 base_url="http://localhost:11434/v1",
@@ -149,9 +154,12 @@ class TestAIService:
 
     def test_openai_compatible_endpoint(self):
         """Test that the service works with any OpenAI-compatible endpoint."""
-        with patch("app.services.ai_service.OpenAI") as mock_openai_class:
+        with patch("app.services.ai_service.OpenAI") as mock_openai_class, \
+             patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
             # Test with NVIDIA endpoint - client is lazy, so access .client to trigger init
             service = AIService(api_key="key", base_url="https://integrate.api.nvidia.com/v1")
+            mock_openai_class.return_value.api_key = "key"
+            mock_openai_class.return_value.base_url = "https://integrate.api.nvidia.com/v1"
             _ = service.client
             mock_openai_class.assert_called_with(
                 api_key="key",
@@ -162,6 +170,8 @@ class TestAIService:
 
             # Test with local Ollama endpoint
             service2 = AIService(api_key="key", base_url="http://localhost:11434/v1")
+            mock_openai_class.return_value.api_key = "key"
+            mock_openai_class.return_value.base_url = "http://localhost:11434/v1"
             _ = service2.client
             mock_openai_class.assert_called_with(
                 api_key="key",
@@ -170,6 +180,7 @@ class TestAIService:
 
     def test_missing_api_key_raises_config_error(self):
         """Test that accessing client without API key raises AIServiceConfigError."""
-        service = AIService(api_key="", base_url="https://integrate.api.nvidia.com/v1")
-        with pytest.raises(AIServiceConfigError, match="AI_API_KEY is not configured"):
-            _ = service.client
+        with patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
+            service = AIService(api_key="", base_url="https://integrate.api.nvidia.com/v1")
+            with pytest.raises(AIServiceConfigError, match="AI API key is not configured"):
+                _ = service.client

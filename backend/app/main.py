@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import projects, workflow, documents, knowledge
+from app.routers import projects, workflow, documents, knowledge, ai_config
 
 app = FastAPI(
     title=settings.app_name,
@@ -26,6 +26,7 @@ app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(workflow.router, prefix="/api/workflow", tags=["workflow"])
 app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
 app.include_router(knowledge.router, prefix="/api/knowledge", tags=["knowledge"])
+app.include_router(ai_config.router, prefix="/api/ai-config", tags=["ai-config"])
 
 
 @app.get("/health")

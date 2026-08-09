@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import Home from './pages/Home'
 import Project from './pages/Project'
 import Documents from './pages/Documents'
+import SettingsPage from './pages/Settings'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/project/:id" element={<Project />} />
             <Route path="/project/:id/documents" element={<Documents />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -80,6 +80,19 @@ export interface KnowledgeSearchResult {
   score: number
 }
 
+export interface AIConfig {
+  api_key_masked: string
+  base_url: string
+  model: string
+  is_configured: boolean
+}
+
+export interface AIConfigUpdate {
+  api_key?: string
+  base_url?: string
+  model?: string
+}
+
 export interface StudyEntry {
   id: string
   author: string

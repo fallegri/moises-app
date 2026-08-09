@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { BookOpen, Home, FileText } from 'lucide-react'
+import { BookOpen, Home, FileText, Settings } from 'lucide-react'
 
 export default function Layout() {
   const location = useLocation()
@@ -31,6 +31,15 @@ export default function Layout() {
             >
               <FileText className="w-4 h-4" />
               Proyectos
+            </Link>
+            <Link
+              to="/settings"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                location.pathname === '/settings' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Configuracion
             </Link>
           </nav>
         </div>
