@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./skills/knowledge:/app/knowledge:ro
+    environment:
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - AI_MODEL=${AI_MODEL:-meta/llama-3.1-405b-instruct}
+      - KNOWLEDGE_BASE_PATH=/app/knowledge
+      - STORAGE_PATH=/app/storage
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
