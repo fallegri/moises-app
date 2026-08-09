@@ -65,6 +65,11 @@ export default function Project() {
     return { ...p, status }
   })
 
+  // Compute progress as percentage of completed phases
+  const progress = workflow
+    ? Math.round((workflow.completed_phases.length / PHASES.length) * 100)
+    : 0
+
   const currentPhaseName = PHASES.find((p) => p.id === workflow?.current_phase)?.name || ''
 
   const handleSubmitText = (text: string) => {
@@ -99,17 +104,15 @@ export default function Project() {
           <h2 className="text-sm font-bold text-slate-900 truncate">
             {project?.title || 'Proyecto'}
           </h2>
-          {workflow && (
-            <div className="flex items-center gap-2 mt-2">
-              <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 rounded-full transition-all"
-                  style={{ width: `${workflow.progress}%` }}
-                />
-              </div>
-              <span className="text-xs text-slate-500">{workflow.progress}%</span>
+          <div className="flex items-center gap-2 mt-2">
+            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all"
+                style={{ width: `${progress}%` }}
+              />
             </div>
-          )}
+            <span className="text-xs text-slate-500">{progress}%</span>
+          </div>
         </div>
         <WorkflowStepper phases={phases} />
         <div className="mt-4 pt-4 border-t border-slate-200">
@@ -138,6 +141,7 @@ export default function Project() {
           {workflow && (
             <PhaseContent
               workflow={workflow}
+              projectId={id!}
               onSubmitText={handleSubmitText}
               onSubmitFiles={handleSubmitFiles}
               onSelectOption={handleSelectOption}

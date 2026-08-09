@@ -1,12 +1,19 @@
 import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Loader2 } from 'lucide-react'
+import { addStudy, setNoMoreStudies } from '../api/client'
 import type { StudyEntry } from '../types/research'
 
-export default function StateOfArtMatrix() {
+interface StateOfArtMatrixProps {
+  projectId: string
+}
+
+export default function StateOfArtMatrix({ projectId }: StateOfArtMatrixProps) {
   const [studies, setStudies] = useState<StudyEntry[]>([])
   const [noMoreResearch, setNoMoreResearch] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const addStudy = () => {
+  const addEmptyStudy = () => {
     const newStudy: StudyEntry = {
       id: crypto.randomUUID(),
       author: '',
@@ -29,6 +36,42 @@ export default function StateOfArtMatrix() {
     setStudies((prev) => prev.filter((s) => s.id !== id))
   }
 
+  const handleSaveStudy = async (study: StudyEntry) => {
+    if (!study.title.trim() || !study.author.trim()) {
+      setError('El titulo y autor son requeridos para guardar un estudio')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await addStudy(projectId, {
+        title: study.title,
+        authors: study.author,
+        year: parseInt(study.year) || new Date().getFullYear(),
+        methodology: study.methodology,
+        findings: study.findings,
+        relevance: study.relevance,
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al guardar el estudio'
+      setError(message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleNoMoreResearch = async (checked: boolean) => {
+    setNoMoreResearch(checked)
+    setError(null)
+    try {
+      await setNoMoreStudies(projectId, checked)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error al actualizar'
+      setError(message)
+      setNoMoreResearch(!checked)
+    }
+  }
+
   const studiesNeeded = 6 - studies.length
 
   return (
@@ -42,11 +85,17 @@ export default function StateOfArtMatrix() {
             Agrega al menos 6 investigaciones similares a tu problema
           </p>
         </div>
-        <button onClick={addStudy} className="btn-secondary flex items-center gap-1 text-sm">
+        <button onClick={addEmptyStudy} className="btn-secondary flex items-center gap-1 text-sm">
           <Plus className="w-4 h-4" />
           Agregar
         </button>
       </div>
+
+      {error && (
+        <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+          {error}
+        </div>
+      )}
 
       {studies.length > 0 && (
         <div className="overflow-x-auto">
@@ -59,7 +108,7 @@ export default function StateOfArtMatrix() {
                 <th className="text-left py-2 px-2 font-medium text-slate-600">Metodologia</th>
                 <th className="text-left py-2 px-2 font-medium text-slate-600">Hallazgos</th>
                 <th className="text-left py-2 px-2 font-medium text-slate-600">Relevancia</th>
-                <th className="w-10"></th>
+                <th className="w-20"></th>
               </tr>
             </thead>
             <tbody>
@@ -119,7 +168,15 @@ export default function StateOfArtMatrix() {
                       placeholder="Relevancia"
                     />
                   </td>
-                  <td className="py-2 px-2">
+                  <td className="py-2 px-2 flex gap-1">
+                    <button
+                      onClick={() => handleSaveStudy(study)}
+                      disabled={saving}
+                      className="text-slate-400 hover:text-blue-500 transition-colors text-xs px-1"
+                      title="Guardar estudio"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : '✓'}
+                    </button>
                     <button
                       onClick={() => removeStudy(study.id)}
                       className="text-slate-400 hover:text-red-500 transition-colors"
@@ -152,7 +209,7 @@ export default function StateOfArtMatrix() {
           <input
             type="checkbox"
             checked={noMoreResearch}
-            onChange={(e) => setNoMoreResearch(e.target.checked)}
+            onChange={(e) => handleNoMoreResearch(e.target.checked)}
             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
           <span className="text-sm text-slate-700">

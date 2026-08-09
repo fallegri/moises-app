@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Search, Upload, BookOpen } from 'lucide-react'
 import { searchKnowledge, uploadKnowledge } from '../api/client'
-import type { KnowledgeDocument } from '../types/research'
+import type { KnowledgeSearchResult } from '../types/research'
 
 export default function KnowledgeBase() {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<KnowledgeDocument[]>([])
+  const [results, setResults] = useState<KnowledgeSearchResult[]>([])
   const [searching, setSearching] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
@@ -88,11 +88,12 @@ export default function KnowledgeBase() {
           <h4 className="text-xs font-semibold text-slate-500 uppercase">
             Resultados ({results.length})
           </h4>
-          {results.map((doc) => (
-            <div key={doc.id} className="p-3 bg-slate-50 rounded-lg">
-              <h5 className="text-sm font-medium text-slate-800">{doc.title}</h5>
+          {results.map((result, index) => (
+            <div key={`${result.filename}-${index}`} className="p-3 bg-slate-50 rounded-lg">
+              <h5 className="text-sm font-medium text-slate-800">{result.heading}</h5>
+              <p className="text-xs text-slate-400 mt-0.5">{result.filename} (score: {result.score})</p>
               <p className="text-xs text-slate-500 mt-1 line-clamp-3">
-                {doc.content_preview}
+                {result.content}
               </p>
             </div>
           ))}

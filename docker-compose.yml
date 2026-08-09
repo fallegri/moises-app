@@ -1,5 +1,10 @@
 version: "3.8"
 
+# NOTE: This application uses in-memory data structures backed by file persistence.
+# It must run with a single Uvicorn worker (the default). Multiple workers or
+# replicas will have divergent in-memory state. This is acceptable for MVP; for
+# production scaling, migrate to a shared database.
+
 services:
   backend:
     build:
@@ -9,6 +14,7 @@ services:
       - "8000:8000"
     volumes:
       - ./skills/knowledge:/app/knowledge:ro
+      - storage_data:/app/storage
     environment:
       - AI_API_KEY=${AI_API_KEY:-}
       - AI_BASE_URL=${AI_BASE_URL:-https://integrate.api.nvidia.com/v1}
@@ -26,3 +32,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  storage_data:
+    driver: local

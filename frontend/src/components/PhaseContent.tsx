@@ -2,13 +2,12 @@ import { Loader2 } from 'lucide-react'
 import type { WorkflowStatus } from '../types/research'
 import TextInput from './TextInput'
 import FileUpload from './FileUpload'
-import AIResponse from './AIResponse'
-import OptionSelector from './OptionSelector'
 import StateOfArtMatrix from './StateOfArtMatrix'
 import VariableMatrix from './VariableMatrix'
 
 interface PhaseContentProps {
   workflow: WorkflowStatus
+  projectId: string
   onSubmitText: (text: string) => void
   onSubmitFiles: (files: File[]) => void
   onSelectOption: (index: number) => void
@@ -18,9 +17,10 @@ interface PhaseContentProps {
 
 export default function PhaseContent({
   workflow,
+  projectId,
   onSubmitText,
   onSubmitFiles,
-  onSelectOption,
+  onSelectOption: _onSelectOption,
   onAdvance,
   isSubmitting,
 }: PhaseContentProps) {
@@ -28,23 +28,17 @@ export default function PhaseContent({
 
   return (
     <div className="space-y-6">
-      {/* AI Response */}
-      {workflow.ai_response && (
-        <AIResponse content={workflow.ai_response} />
+      {/* Phase info from backend */}
+      {workflow.phase_info && (
+        <div className="card">
+          <h3 className="text-sm font-semibold text-slate-700">{workflow.phase_info.title}</h3>
+          <p className="text-sm text-slate-500 mt-1">{workflow.phase_info.description}</p>
+        </div>
       )}
 
-      {/* Options (e.g., 3 problem formulations) */}
-      {workflow.options && workflow.options.length > 0 && (
-        <OptionSelector
-          options={workflow.options}
-          onSelect={onSelectOption}
-          disabled={isSubmitting}
-        />
-      )}
-
-      {/* State of Art Matrix (background phase) */}
-      {phase === 'background' && (
-        <StateOfArtMatrix />
+      {/* State of Art Matrix (state_of_art phase) */}
+      {phase === 'state_of_art' && (
+        <StateOfArtMatrix projectId={projectId} />
       )}
 
       {/* Variable Matrix (methodological framework) */}
@@ -53,21 +47,26 @@ export default function PhaseContent({
       )}
 
       {/* Tasks */}
-      {workflow.tasks && workflow.tasks.length > 0 && (
+      {workflow.current_tasks && workflow.current_tasks.length > 0 && (
         <div className="card">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Tareas pendientes</h3>
           <ul className="space-y-2">
-            {workflow.tasks.map((task) => (
-              <li key={task.id} className="flex items-start gap-2">
+            {workflow.current_tasks.map((task, index) => (
+              <li key={index} className="flex items-start gap-2">
                 <input
                   type="checkbox"
                   checked={task.completed}
                   readOnly
                   className="mt-0.5 rounded border-slate-300"
                 />
-                <span className={`text-sm ${task.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
-                  {task.description}
-                </span>
+                <div>
+                  <span className={`text-sm ${task.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                    {task.description}
+                  </span>
+                  {task.instruction && (
+                    <p className="text-xs text-slate-500 mt-0.5">{task.instruction}</p>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -75,18 +74,16 @@ export default function PhaseContent({
       )}
 
       {/* Input Area */}
-      {!workflow.options?.length && (
-        <div className="space-y-4">
-          <TextInput onSubmit={onSubmitText} disabled={isSubmitting} />
-          <FileUpload onFilesAccepted={onSubmitFiles} disabled={isSubmitting} />
-        </div>
-      )}
+      <div className="space-y-4">
+        <TextInput onSubmit={onSubmitText} disabled={isSubmitting} />
+        <FileUpload onFilesAccepted={onSubmitFiles} disabled={isSubmitting} />
+      </div>
 
       {/* Advance Button */}
       <div className="flex justify-end pt-4">
         <button
           onClick={onAdvance}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !workflow.can_advance}
           className="btn-primary flex items-center gap-2"
         >
           {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}

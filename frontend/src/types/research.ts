@@ -4,13 +4,13 @@ export type PhaseId =
   | 'problem_refinement'
   | 'research_question'
   | 'introduction'
-  | 'background'
-  | 'problem_chapter'
+  | 'state_of_art'
+  | 'problem_identification_chapter'
   | 'specific_problems'
   | 'research_objective'
   | 'specific_objectives'
   | 'methodological_framework'
-  | 'data_collection'
+  | 'data_collection_instruments'
 
 export interface Phase {
   id: PhaseId
@@ -20,19 +20,19 @@ export interface Phase {
 }
 
 export interface Task {
-  id: string
   description: string
+  instruction: string
   completed: boolean
 }
 
 export interface WorkflowStatus {
   project_id: string
   current_phase: PhaseId
-  phases: Phase[]
-  tasks: Task[]
-  progress: number
-  ai_response?: string
-  options?: string[]
+  phase_info: { title: string; description: string }
+  completed_phases: PhaseId[]
+  current_tasks: Task[]
+  coherence_validated: boolean
+  can_advance: boolean
 }
 
 export interface ResearchProject {
@@ -73,10 +73,11 @@ export interface DocumentInfo {
   download_url?: string
 }
 
-export interface KnowledgeDocument {
-  id: string
-  title: string
-  content_preview: string
+export interface KnowledgeSearchResult {
+  filename: string
+  heading: string
+  content: string
+  score: number
 }
 
 export interface StudyEntry {
@@ -103,11 +104,11 @@ export const PHASES: { id: PhaseId; name: string; description: string }[] = [
   { id: 'problem_refinement', name: 'Refinamiento del Problema', description: 'Selecciona entre 3 formulaciones del problema' },
   { id: 'research_question', name: 'Pregunta de Investigacion', description: 'Identificacion de la pregunta de investigacion' },
   { id: 'introduction', name: 'Introduccion', description: 'Construccion del capitulo de introduccion' },
-  { id: 'background', name: 'Antecedentes', description: 'Estado de la cuestion con matriz de investigaciones' },
-  { id: 'problem_chapter', name: 'Capitulo del Problema', description: 'Redaccion del capitulo de identificacion del problema' },
+  { id: 'state_of_art', name: 'Antecedentes', description: 'Estado de la cuestion con matriz de investigaciones' },
+  { id: 'problem_identification_chapter', name: 'Capitulo del Problema', description: 'Redaccion del capitulo de identificacion del problema' },
   { id: 'specific_problems', name: 'Problemas Especificos', description: 'Identificacion de problemas especificos' },
   { id: 'research_objective', name: 'Objetivo de Investigacion', description: 'Definicion del objetivo general' },
   { id: 'specific_objectives', name: 'Objetivos Especificos', description: 'Definicion de objetivos especificos' },
   { id: 'methodological_framework', name: 'Marco Metodologico', description: 'Matriz de conceptualizacion de variables' },
-  { id: 'data_collection', name: 'Recopilacion de Datos', description: 'Instrumentos de recopilacion de informacion' },
+  { id: 'data_collection_instruments', name: 'Recopilacion de Datos', description: 'Instrumentos de recopilacion de informacion' },
 ]

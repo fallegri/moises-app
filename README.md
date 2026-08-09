@@ -108,6 +108,10 @@ cp .env.example .env
 
 ### 2. Construir y ejecutar
 
+> **Nota:** El backend debe ejecutarse con un solo worker de Uvicorn (configuracion por defecto).
+> La persistencia utiliza archivos locales con copia en memoria, por lo que multiples workers o
+> replicas tendran estado divergente. Esto es aceptable para MVP.
+
 ```bash
 docker-compose up --build
 ```

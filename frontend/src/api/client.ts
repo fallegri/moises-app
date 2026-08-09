@@ -5,7 +5,7 @@ import type {
   WorkflowStatus,
   SelectOptionRequest,
   ValidationResult,
-  KnowledgeDocument,
+  KnowledgeSearchResult,
 } from '../types/research'
 
 const api = axios.create({
@@ -74,6 +74,29 @@ export async function validateCoherence(projectId: string): Promise<ValidationRe
   return response.data
 }
 
+// State of Art
+export interface AddStudyData {
+  title: string
+  authors: string
+  year: number
+  methodology: string
+  findings: string
+  relevance: string
+  source?: string
+}
+
+export async function addStudy(projectId: string, data: AddStudyData): Promise<{ message: string }> {
+  const response = await api.post(`/api/workflow/${projectId}/state-of-art/add-study`, data)
+  return response.data
+}
+
+export async function setNoMoreStudies(projectId: string, noMoreStudies: boolean): Promise<{ message: string }> {
+  const response = await api.post(`/api/workflow/${projectId}/state-of-art/no-more-studies`, {
+    no_more_studies_found: noMoreStudies,
+  })
+  return response.data
+}
+
 // Documents
 export async function generateDocument(projectId: string, chapter: string): Promise<{ message: string }> {
   const response = await api.post(`/api/documents/${projectId}/generate/${chapter}`)
@@ -86,9 +109,9 @@ export function getDocumentDownloadUrl(projectId: string, chapter: string): stri
 }
 
 // Knowledge Base
-export async function searchKnowledge(query: string): Promise<KnowledgeDocument[]> {
+export async function searchKnowledge(query: string): Promise<KnowledgeSearchResult[]> {
   const response = await api.get('/api/knowledge/search', { params: { q: query } })
-  return response.data
+  return response.data.results
 }
 
 export async function uploadKnowledge(file: File): Promise<{ message: string }> {
