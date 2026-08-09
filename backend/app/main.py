@@ -21,11 +21,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(projects.router, prefix="/projects", tags=["projects"])
-app.include_router(workflow.router, prefix="/workflow", tags=["workflow"])
-app.include_router(documents.router, prefix="/documents", tags=["documents"])
-app.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
+# Include routers with /api prefix to match frontend expectations
+app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+app.include_router(workflow.router, prefix="/api/workflow", tags=["workflow"])
+app.include_router(documents.router, prefix="/api/documents", tags=["documents"])
+app.include_router(knowledge.router, prefix="/api/knowledge", tags=["knowledge"])
 
 
 @app.get("/health")

@@ -42,17 +42,19 @@ export async function getWorkflowStatus(projectId: string): Promise<WorkflowStat
 }
 
 export async function submitInput(projectId: string, text?: string, files?: File[]): Promise<WorkflowStatus> {
-  const formData = new FormData()
-  if (text) {
-    formData.append('text', text)
+  let fileContent: string | undefined
+  if (files && files.length > 0) {
+    // Read file contents as text to send alongside user text
+    const fileTexts: string[] = []
+    for (const file of files) {
+      const content = await file.text()
+      fileTexts.push(`[${file.name}]\n${content}`)
+    }
+    fileContent = fileTexts.join('\n\n')
   }
-  if (files) {
-    files.forEach((file) => {
-      formData.append('files', file)
-    })
-  }
-  const response = await api.post(`/api/workflow/${projectId}/submit-input`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
+  const response = await api.post(`/api/workflow/${projectId}/submit-input`, {
+    text: text || '',
+    file_content: fileContent,
   })
   return response.data
 }

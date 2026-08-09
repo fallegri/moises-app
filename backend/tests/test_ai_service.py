@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch, PropertyMock
 
-from app.services.ai_service import AIService
+from app.services.ai_service import AIService, AIServiceConfigError
 
 
 @pytest.fixture
@@ -29,7 +29,8 @@ def ai_service(mock_openai_response):
             base_url="https://integrate.api.nvidia.com/v1",
             model="meta/llama-3.1-405b-instruct",
         )
-        service.client = mock_client
+        # Force the lazy client to initialize with our mock
+        service._client = mock_client
         return service
 
 
@@ -149,16 +150,26 @@ class TestAIService:
     def test_openai_compatible_endpoint(self):
         """Test that the service works with any OpenAI-compatible endpoint."""
         with patch("app.services.ai_service.OpenAI") as mock_openai_class:
-            # Test with NVIDIA endpoint
-            AIService(api_key="key", base_url="https://integrate.api.nvidia.com/v1")
+            # Test with NVIDIA endpoint - client is lazy, so access .client to trigger init
+            service = AIService(api_key="key", base_url="https://integrate.api.nvidia.com/v1")
+            _ = service.client
             mock_openai_class.assert_called_with(
                 api_key="key",
                 base_url="https://integrate.api.nvidia.com/v1",
             )
 
+            mock_openai_class.reset_mock()
+
             # Test with local Ollama endpoint
-            AIService(api_key="key", base_url="http://localhost:11434/v1")
+            service2 = AIService(api_key="key", base_url="http://localhost:11434/v1")
+            _ = service2.client
             mock_openai_class.assert_called_with(
                 api_key="key",
                 base_url="http://localhost:11434/v1",
             )
+
+    def test_missing_api_key_raises_config_error(self):
+        """Test that accessing client without API key raises AIServiceConfigError."""
+        service = AIService(api_key="", base_url="https://integrate.api.nvidia.com/v1")
+        with pytest.raises(AIServiceConfigError, match="AI_API_KEY is not configured"):
+            _ = service.client

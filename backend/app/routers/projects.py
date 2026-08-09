@@ -7,11 +7,34 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.models.research_project import ResearchProject, ProjectStatus
+from app.services.persistence import PersistenceService
 
 router = APIRouter()
 
-# In-memory storage (to be replaced with database in production)
+# Persistence service
+_persistence = PersistenceService()
+
+# In-memory storage backed by file persistence
 _projects: dict[str, ResearchProject] = {}
+
+
+def _load_projects_from_disk():
+    """Load persisted projects into memory on startup."""
+    saved = _persistence.load_all_projects()
+    for project_id, data in saved.items():
+        try:
+            _projects[project_id] = ResearchProject.model_validate(data)
+        except Exception:
+            continue
+
+
+# Load on module import
+_load_projects_from_disk()
+
+
+def _persist_project(project: ResearchProject):
+    """Save project to disk."""
+    _persistence.save_project(project.id, project.model_dump(mode="json"))
 
 
 class CreateProjectRequest(BaseModel):
@@ -30,6 +53,7 @@ async def create_project(request: CreateProjectRequest):
     """Create a new research project."""
     project = ResearchProject(title=request.title)
     _projects[project.id] = project
+    _persist_project(project)
     return project
 
 
@@ -62,6 +86,7 @@ async def update_project(project_id: str, request: UpdateProjectRequest):
     project.updated_at = datetime.utcnow()
 
     _projects[project_id] = project
+    _persist_project(project)
     return project
 
 
@@ -71,4 +96,6 @@ async def delete_project(project_id: str):
     if project_id not in _projects:
         raise HTTPException(status_code=404, detail="Project not found")
     del _projects[project_id]
+    _persistence.delete_project(project_id)
+    _persistence.delete_workflow(project_id)
     return {"message": "Project deleted successfully"}

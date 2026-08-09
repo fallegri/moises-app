@@ -14,6 +14,11 @@ from app.core.prompts import (
 )
 
 
+class AIServiceConfigError(Exception):
+    """Raised when the AI service is not properly configured."""
+    pass
+
+
 class AIService:
     """Multi-backend AI service using OpenAI-compatible API."""
 
@@ -26,10 +31,22 @@ class AIService:
         self.api_key = api_key or settings.ai_api_key
         self.base_url = base_url or settings.ai_base_url
         self.model = model or settings.ai_model
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
-        )
+        self._client: Optional[OpenAI] = None
+
+    @property
+    def client(self) -> OpenAI:
+        """Lazy-initialize the OpenAI client with API key validation."""
+        if self._client is None:
+            if not self.api_key:
+                raise AIServiceConfigError(
+                    "AI_API_KEY is not configured. Set the AI_API_KEY environment variable "
+                    "or add it to your .env file to enable AI features."
+                )
+            self._client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+            )
+        return self._client
 
     def _call_ai(self, system_prompt: str, user_message: str) -> str:
         """Make a call to the AI API."""

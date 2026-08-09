@@ -1,24 +1,31 @@
 """Integration tests for the full research workflow using FastAPI TestClient."""
 
 import io
+import shutil
 import pytest
 from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers.projects import _projects
-from app.routers.workflow import _workflow_states, _engine
+from app.routers.projects import _projects, _persistence as project_persistence
+from app.routers.workflow import _workflow_states, _engine, _persistence as workflow_persistence
 
 
 @pytest.fixture(autouse=True)
 def clear_state():
-    """Clear in-memory state before each test."""
+    """Clear in-memory state and persistence files before each test."""
     _projects.clear()
     _workflow_states.clear()
     yield
     _projects.clear()
     _workflow_states.clear()
+    # Clean up any persistence files created during tests
+    data_dir = project_persistence.data_dir
+    if data_dir.exists():
+        shutil.rmtree(data_dir)
+    project_persistence._ensure_dirs()
+    workflow_persistence._ensure_dirs()
 
 
 @pytest.fixture
@@ -80,7 +87,7 @@ class TestFullWorkflow:
 
     def test_create_project(self, client):
         """Test creating a new research project."""
-        response = client.post("/projects/", json={"title": "Investigacion sobre rotacion laboral"})
+        response = client.post("/api/projects/", json={"title": "Investigacion sobre rotacion laboral"})
         assert response.status_code == 200
         data = response.json()
         assert data["title"] == "Investigacion sobre rotacion laboral"
@@ -89,12 +96,12 @@ class TestFullWorkflow:
     def test_full_workflow_create_and_submit(self, client, mock_ai):
         """Test the full workflow: create project -> submit input -> get analysis."""
         # Step 1: Create project
-        response = client.post("/projects/", json={"title": "Test Research"})
+        response = client.post("/api/projects/", json={"title": "Test Research"})
         assert response.status_code == 200
         project_id = response.json()["id"]
 
         # Step 2: Get workflow status (initializes workflow)
-        response = client.get(f"/workflow/{project_id}/status")
+        response = client.get(f"/api/workflow/{project_id}/status")
         assert response.status_code == 200
         status = response.json()
         assert status["current_phase"] == "problem_identification"
@@ -102,7 +109,7 @@ class TestFullWorkflow:
 
         # Step 3: Submit problem description
         response = client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={
                 "text": "En mi empresa hay una alta rotacion de personal. "
                 "En los ultimos 6 meses se han ido 20 de 50 empleados."
@@ -117,105 +124,105 @@ class TestFullWorkflow:
     def test_workflow_advance_through_phases(self, client, mock_ai):
         """Test advancing through multiple workflow phases."""
         # Create project
-        response = client.post("/projects/", json={"title": "Multi-phase Test"})
+        response = client.post("/api/projects/", json={"title": "Multi-phase Test"})
         project_id = response.json()["id"]
 
         # Initialize workflow
-        client.get(f"/workflow/{project_id}/status")
+        client.get(f"/api/workflow/{project_id}/status")
 
         # Phase 1: Problem Identification
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Situacion problematica en la educacion rural"},
         )
 
         # Validate coherence
-        response = client.post(f"/workflow/{project_id}/validate")
+        response = client.post(f"/api/workflow/{project_id}/validate")
         assert response.status_code == 200
         assert response.json()["is_coherent"] is True
 
         # Advance to next phase
-        response = client.post(f"/workflow/{project_id}/advance")
+        response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 200
         assert response.json()["new_phase"] == "instrument_suggestion"
 
         # Phase 2: Instrument Suggestion
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Datos de encuestas recopilados"},
         )
 
         # Validate and advance
-        client.post(f"/workflow/{project_id}/validate")
-        response = client.post(f"/workflow/{project_id}/advance")
+        client.post(f"/api/workflow/{project_id}/validate")
+        response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 200
         assert response.json()["new_phase"] == "problem_refinement"
 
         # Phase 3: Problem Refinement
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Resultados de investigacion preliminar"},
         )
 
         # Validate and advance
-        client.post(f"/workflow/{project_id}/validate")
-        response = client.post(f"/workflow/{project_id}/advance")
+        client.post(f"/api/workflow/{project_id}/validate")
+        response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 200
         assert response.json()["new_phase"] == "research_question"
 
     def test_workflow_cannot_advance_without_validation(self, client, mock_ai):
         """Test that workflow cannot advance without coherence validation."""
         # Create project and submit first input
-        response = client.post("/projects/", json={"title": "Validation Test"})
+        response = client.post("/api/projects/", json={"title": "Validation Test"})
         project_id = response.json()["id"]
-        client.get(f"/workflow/{project_id}/status")
+        client.get(f"/api/workflow/{project_id}/status")
 
         # Mock incoherent response for this test
         mock_ai.validate_coherence.return_value = "INCOHERENTE: Los datos no son consistentes."
 
         # Submit input
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Datos inconsistentes"},
         )
 
         # Try to advance - should fail because coherence not validated
-        response = client.post(f"/workflow/{project_id}/advance")
+        response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 400
         assert "coherence validation failed" in response.json()["detail"]
 
     def test_select_problem_formulation(self, client, mock_ai):
         """Test selecting a problem formulation in the refinement phase."""
         # Create project and get to refinement phase
-        response = client.post("/projects/", json={"title": "Formulation Test"})
+        response = client.post("/api/projects/", json={"title": "Formulation Test"})
         project_id = response.json()["id"]
-        client.get(f"/workflow/{project_id}/status")
+        client.get(f"/api/workflow/{project_id}/status")
 
         # Phase 1 - submit and advance
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Problema observado"},
         )
-        client.post(f"/workflow/{project_id}/validate")
-        client.post(f"/workflow/{project_id}/advance")
+        client.post(f"/api/workflow/{project_id}/validate")
+        client.post(f"/api/workflow/{project_id}/advance")
 
         # Phase 2 - submit and advance
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Datos adicionales"},
         )
-        client.post(f"/workflow/{project_id}/validate")
-        client.post(f"/workflow/{project_id}/advance")
+        client.post(f"/api/workflow/{project_id}/validate")
+        client.post(f"/api/workflow/{project_id}/advance")
 
         # Now in problem_refinement - submit data
         client.post(
-            f"/workflow/{project_id}/submit-input",
+            f"/api/workflow/{project_id}/submit-input",
             json={"text": "Resultados de campo"},
         )
 
         # Try to select an option (no refined problems stored yet, should get error)
         response = client.post(
-            f"/workflow/{project_id}/select-option",
+            f"/api/workflow/{project_id}/select-option",
             json={"option_index": 0},
         )
         # Will return 400 because refined_problems list is empty in this mock
@@ -229,7 +236,7 @@ class TestFileUpload:
         """Test uploading a markdown file to knowledge base."""
         content = b"# Test Research Paper\n\nThis is test content about methodology."
         response = client.post(
-            "/knowledge/upload",
+            "/api/knowledge/upload",
             files={"file": ("test_paper.md", content, "text/markdown")},
         )
         assert response.status_code == 200
@@ -241,7 +248,7 @@ class TestFileUpload:
         """Test uploading an unsupported file type."""
         content = b"binary content"
         response = client.post(
-            "/knowledge/upload",
+            "/api/knowledge/upload",
             files={"file": ("test.pdf", content, "application/pdf")},
         )
         assert response.status_code == 400
@@ -251,7 +258,7 @@ class TestFileUpload:
         """Test uploading a plain text file."""
         content = b"Contenido de investigacion sobre educacion en zonas rurales."
         response = client.post(
-            "/knowledge/upload",
+            "/api/knowledge/upload",
             files={"file": ("research.txt", content, "text/plain")},
         )
         assert response.status_code == 200
@@ -264,7 +271,7 @@ class TestKnowledgeBase:
 
     def test_search_knowledge_base(self, client):
         """Test searching the knowledge base."""
-        response = client.get("/knowledge/search", params={"q": "metodologia"})
+        response = client.get("/api/knowledge/search", params={"q": "metodologia"})
         assert response.status_code == 200
         data = response.json()
         assert "results" in data
@@ -273,12 +280,12 @@ class TestKnowledgeBase:
 
     def test_search_empty_query(self, client):
         """Test searching with an empty query."""
-        response = client.get("/knowledge/search", params={"q": ""})
+        response = client.get("/api/knowledge/search", params={"q": ""})
         assert response.status_code == 400
 
     def test_list_knowledge_documents(self, client):
         """Test listing all knowledge base documents."""
-        response = client.get("/knowledge/documents")
+        response = client.get("/api/knowledge/documents")
         assert response.status_code == 200
         data = response.json()
         assert "documents" in data
@@ -291,12 +298,12 @@ class TestDocumentGeneration:
     def test_generate_document(self, client):
         """Test generating an APA 7 document."""
         # First create a project
-        response = client.post("/projects/", json={"title": "Document Test"})
+        response = client.post("/api/projects/", json={"title": "Document Test"})
         project_id = response.json()["id"]
 
         # Generate a document
         response = client.post(
-            f"/documents/{project_id}/generate/introduccion",
+            f"/api/documents/{project_id}/generate/introduccion",
             json={
                 "content": "Este capitulo presenta la introduccion de la investigacion.",
                 "author": "Investigador Test",
@@ -314,11 +321,11 @@ class TestDocumentGeneration:
     def test_download_generated_document(self, client):
         """Test downloading a generated document."""
         # Create project and generate document
-        response = client.post("/projects/", json={"title": "Download Test"})
+        response = client.post("/api/projects/", json={"title": "Download Test"})
         project_id = response.json()["id"]
 
         client.post(
-            f"/documents/{project_id}/generate/antecedentes",
+            f"/api/documents/{project_id}/generate/antecedentes",
             json={
                 "content": "Capitulo de antecedentes de la investigacion.",
                 "author": "Test Author",
@@ -326,22 +333,22 @@ class TestDocumentGeneration:
         )
 
         # Download the document
-        response = client.get(f"/documents/{project_id}/download/antecedentes")
+        response = client.get(f"/api/documents/{project_id}/download/antecedentes")
         assert response.status_code == 200
         assert "application/vnd.openxmlformats" in response.headers["content-type"]
 
     def test_download_nonexistent_document(self, client):
         """Test downloading a document that doesn't exist."""
-        response = client.post("/projects/", json={"title": "No Doc Test"})
+        response = client.post("/api/projects/", json={"title": "No Doc Test"})
         project_id = response.json()["id"]
 
-        response = client.get(f"/documents/{project_id}/download/capitulo_x")
+        response = client.get(f"/api/documents/{project_id}/download/capitulo_x")
         assert response.status_code == 404
 
     def test_generate_document_nonexistent_project(self, client):
         """Test generating a document for a non-existent project."""
         response = client.post(
-            "/documents/nonexistent-id/generate/intro",
+            "/api/documents/nonexistent-id/generate/intro",
             json={"content": "test"},
         )
         assert response.status_code == 404
@@ -349,15 +356,15 @@ class TestDocumentGeneration:
     def test_list_project_documents(self, client):
         """Test listing documents for a project."""
         # Create project and generate a document
-        response = client.post("/projects/", json={"title": "List Test"})
+        response = client.post("/api/projects/", json={"title": "List Test"})
         project_id = response.json()["id"]
 
         client.post(
-            f"/documents/{project_id}/generate/marco_teorico",
+            f"/api/documents/{project_id}/generate/marco_teorico",
             json={"content": "Marco teorico de la investigacion."},
         )
 
-        response = client.get(f"/documents/{project_id}/list")
+        response = client.get(f"/api/documents/{project_id}/list")
         assert response.status_code == 200
         data = response.json()
         assert len(data["documents"]) == 1
@@ -369,46 +376,218 @@ class TestProjectsCRUD:
 
     def test_create_and_list_projects(self, client):
         """Test creating multiple projects and listing them."""
-        client.post("/projects/", json={"title": "Project 1"})
-        client.post("/projects/", json={"title": "Project 2"})
+        client.post("/api/projects/", json={"title": "Project 1"})
+        client.post("/api/projects/", json={"title": "Project 2"})
 
-        response = client.get("/projects/")
+        response = client.get("/api/projects/")
         assert response.status_code == 200
         projects = response.json()
         assert len(projects) == 2
 
     def test_get_project_by_id(self, client):
         """Test getting a specific project."""
-        response = client.post("/projects/", json={"title": "Single Project"})
+        response = client.post("/api/projects/", json={"title": "Single Project"})
         project_id = response.json()["id"]
 
-        response = client.get(f"/projects/{project_id}")
+        response = client.get(f"/api/projects/{project_id}")
         assert response.status_code == 200
         assert response.json()["title"] == "Single Project"
 
     def test_get_nonexistent_project(self, client):
         """Test getting a project that doesn't exist."""
-        response = client.get("/projects/nonexistent-id")
+        response = client.get("/api/projects/nonexistent-id")
         assert response.status_code == 404
 
     def test_update_project(self, client):
         """Test updating a project title."""
-        response = client.post("/projects/", json={"title": "Original Title"})
+        response = client.post("/api/projects/", json={"title": "Original Title"})
         project_id = response.json()["id"]
 
         response = client.put(
-            f"/projects/{project_id}", json={"title": "Updated Title"}
+            f"/api/projects/{project_id}", json={"title": "Updated Title"}
         )
         assert response.status_code == 200
         assert response.json()["title"] == "Updated Title"
 
     def test_delete_project(self, client):
         """Test deleting a project."""
-        response = client.post("/projects/", json={"title": "To Delete"})
+        response = client.post("/api/projects/", json={"title": "To Delete"})
         project_id = response.json()["id"]
 
-        response = client.delete(f"/projects/{project_id}")
+        response = client.delete(f"/api/projects/{project_id}")
         assert response.status_code == 200
 
-        response = client.get(f"/projects/{project_id}")
+        response = client.get(f"/api/projects/{project_id}")
         assert response.status_code == 404
+
+
+class TestStateOfArt:
+    """Tests for state-of-art endpoints with no_more_studies flag."""
+
+    def _advance_to_state_of_art(self, client, mock_ai):
+        """Helper to advance a project to the state-of-art phase."""
+        response = client.post("/api/projects/", json={"title": "State of Art Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        # Advance through phases until STATE_OF_ART (5 phases before it)
+        for i in range(5):
+            client.post(
+                f"/api/workflow/{project_id}/submit-input",
+                json={"text": f"Input for phase {i}"},
+            )
+            client.post(f"/api/workflow/{project_id}/validate")
+            client.post(f"/api/workflow/{project_id}/advance")
+
+        return project_id
+
+    def test_add_study(self, client, mock_ai):
+        """Test adding a similar study to state-of-art matrix."""
+        project_id = self._advance_to_state_of_art(client, mock_ai)
+
+        response = client.post(
+            f"/api/workflow/{project_id}/state-of-art/add-study",
+            json={
+                "title": "Estudio sobre educacion rural",
+                "authors": "Garcia, J.",
+                "year": 2022,
+                "methodology": "Cualitativa",
+                "findings": "Falta de acceso",
+                "relevance": "Alta",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["studies_count"] == 1
+        assert data["can_proceed"] is False
+
+    def test_cannot_advance_without_enough_studies(self, client, mock_ai):
+        """Test that cannot advance state-of-art without 6 studies or flag."""
+        project_id = self._advance_to_state_of_art(client, mock_ai)
+
+        # Add only 2 studies
+        for i in range(2):
+            client.post(
+                f"/api/workflow/{project_id}/state-of-art/add-study",
+                json={
+                    "title": f"Study {i}",
+                    "authors": "Author",
+                    "year": 2022,
+                    "methodology": "Test",
+                    "findings": "Test",
+                    "relevance": "Test",
+                },
+            )
+
+        # Submit input so we have phase data
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "State of art input"},
+        )
+
+        # Try to advance - should fail
+        response = client.post(f"/api/workflow/{project_id}/advance")
+        assert response.status_code == 400
+        assert "at least 6 similar studies" in response.json()["detail"]
+
+    def test_no_more_studies_flag_allows_advance(self, client, mock_ai):
+        """Test that checking no_more_studies_found allows advance with fewer than 6."""
+        project_id = self._advance_to_state_of_art(client, mock_ai)
+
+        # Add only 3 studies
+        for i in range(3):
+            client.post(
+                f"/api/workflow/{project_id}/state-of-art/add-study",
+                json={
+                    "title": f"Study {i}",
+                    "authors": "Author",
+                    "year": 2022,
+                    "methodology": "Test",
+                    "findings": "Test",
+                    "relevance": "Test",
+                },
+            )
+
+        # Set no_more_studies flag
+        response = client.post(
+            f"/api/workflow/{project_id}/state-of-art/no-more-studies",
+            json={"no_more_studies_found": True},
+        )
+        assert response.status_code == 200
+        assert response.json()["can_proceed"] is True
+
+        # Now submit input and try to advance
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "State of art synthesis"},
+        )
+
+        response = client.post(f"/api/workflow/{project_id}/advance")
+        assert response.status_code == 200
+        assert response.json()["new_phase"] == "problem_identification_chapter"
+
+    def test_cannot_add_study_in_wrong_phase(self, client, mock_ai):
+        """Test that adding studies is only allowed during state-of-art phase."""
+        response = client.post("/api/projects/", json={"title": "Wrong Phase"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        response = client.post(
+            f"/api/workflow/{project_id}/state-of-art/add-study",
+            json={
+                "title": "Study",
+                "authors": "Author",
+                "year": 2022,
+                "methodology": "Test",
+                "findings": "Test",
+                "relevance": "Test",
+            },
+        )
+        assert response.status_code == 400
+        assert "state-of-art phase" in response.json()["detail"]
+
+
+class TestKnowledgeUploadPersistence:
+    """Tests verifying knowledge upload is actually persisted in memory."""
+
+    def test_uploaded_file_becomes_searchable(self, client):
+        """Test that uploaded literature becomes searchable in the knowledge base."""
+        # Upload a file with specific content
+        content = b"# Estudio sobre metacognicion\n\nLa metacognicion es fundamental en la educacion."
+        client.post(
+            "/api/knowledge/upload",
+            files={"file": ("metacognicion.md", content, "text/markdown")},
+        )
+
+        # Search for the uploaded content
+        response = client.get("/api/knowledge/search", params={"q": "metacognicion"})
+        assert response.status_code == 200
+        data = response.json()
+        # The uploaded document should appear in search results
+        assert data["total_results"] > 0
+        found = any("metacognicion" in r.get("filename", "").lower() for r in data["results"])
+        assert found
+
+
+class TestCoherenceFailClosed:
+    """Tests for coherence validation fail-closed behavior."""
+
+    def test_ambiguous_response_defaults_to_incoherent(self, client, mock_ai):
+        """Test that an ambiguous AI response results in coherence failure."""
+        response = client.post("/api/projects/", json={"title": "Ambiguous Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        # Mock an ambiguous response with no clear coherence indicator
+        mock_ai.validate_coherence.return_value = (
+            "El texto presenta algunos elementos que requieren revision adicional."
+        )
+
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "Some input"},
+        )
+
+        response = client.post(f"/api/workflow/{project_id}/validate")
+        assert response.status_code == 200
+        assert response.json()["is_coherent"] is False

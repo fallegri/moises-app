@@ -1,0 +1,14 @@
+{
+  "task_id": "task-research-assistant",
+  "task_description": "Build a complete AI-powered research assistant that guides users step-by-step through the scientific research process: from problem identification through methodology framework, generating APA 7 formatted documents at each stage. Uses knowledge base of methodology books as reference, supports file uploads (Word, Excel, MD), and validates coherence at every phase using AI.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "pass",
+    "summary": "All 58 backend tests pass, all 10 frontend tests pass, frontend builds cleanly, both Docker images build successfully. Tests exercise real workflow logic including phase transitions, coherence validation, file uploads, document generation, and full API integration."
+  }
+}

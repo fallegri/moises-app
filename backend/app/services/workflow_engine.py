@@ -289,6 +289,23 @@ class WorkflowEngine:
             )
             result = {"research_questions": ai_response}
 
+        elif phase == WorkflowPhase.STATE_OF_ART:
+            # Handle state-of-art phase: user submits study data
+            # Parse the input as a study entry and add to the project's state_of_art
+            project_context = self._build_project_context(project)
+            ai_response = self.ai_service.generate_chapter(
+                phase.value, user_input, project_context, knowledge_context
+            )
+            result = {
+                "generated_content": ai_response,
+                "studies_count": len(project.state_of_art.studies),
+                "no_more_studies_found": project.state_of_art.no_more_studies_found,
+                "can_proceed": (
+                    len(project.state_of_art.studies) >= 6
+                    or project.state_of_art.no_more_studies_found
+                ),
+            }
+
         else:
             # For chapter generation phases
             project_context = self._build_project_context(project)
@@ -340,8 +357,8 @@ class WorkflowEngine:
             if indicator in result_lower:
                 return True
 
-        # Default to true if no clear indicator
-        return True
+        # Default to false if no clear indicator (fail-closed)
+        return False
 
     def advance_phase(self, state: WorkflowState) -> Optional[WorkflowPhase]:
         """Advance to the next phase."""
@@ -349,6 +366,50 @@ class WorkflowEngine:
         if new_phase:
             state.current_tasks = self._get_phase_tasks(new_phase)
         return new_phase
+
+    def add_similar_study(
+        self,
+        project: ResearchProject,
+        study: SimilarStudy,
+    ) -> dict[str, Any]:
+        """Add a similar study to the state-of-art matrix."""
+        project.state_of_art.studies.append(study)
+        return {
+            "studies_count": len(project.state_of_art.studies),
+            "can_proceed": (
+                len(project.state_of_art.studies) >= 6
+                or project.state_of_art.no_more_studies_found
+            ),
+        }
+
+    def set_no_more_studies(
+        self,
+        project: ResearchProject,
+        state: WorkflowState,
+        no_more: bool,
+    ) -> dict[str, Any]:
+        """Set the 'no more studies found' flag for the state-of-art phase.
+
+        When checked, allows advancing with fewer than 6 studies.
+        """
+        project.state_of_art.no_more_studies_found = no_more
+        studies_count = len(project.state_of_art.studies)
+        can_proceed = studies_count >= 6 or no_more
+        return {
+            "no_more_studies_found": no_more,
+            "studies_count": studies_count,
+            "can_proceed": can_proceed,
+        }
+
+    def can_advance_state_of_art(self, project: ResearchProject) -> bool:
+        """Check if the state-of-art phase can advance.
+
+        Requires at least 6 studies, or fewer if 'no_more_studies_found' is checked.
+        """
+        studies_count = len(project.state_of_art.studies)
+        return studies_count >= 6 or (
+            project.state_of_art.no_more_studies_found and studies_count > 0
+        )
 
     def _build_project_context(self, project: ResearchProject) -> str:
         """Build a context string from all project data accumulated so far."""

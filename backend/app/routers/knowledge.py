@@ -67,6 +67,15 @@ async def upload_literature(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+    # Add the extracted text to the knowledge base so it becomes searchable
+    from app.services.knowledge_base import KnowledgeDocument as KBDocument
+    new_doc = KBDocument(
+        filename=file.filename,
+        content=extracted_text,
+        path=f"uploaded/{file.filename}",
+    )
+    _knowledge_base.documents.append(new_doc)
+
     return {
         "filename": file.filename,
         "extracted_text_length": len(extracted_text),

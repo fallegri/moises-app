@@ -1,0 +1,22 @@
+{
+  "project_type": "Full-stack research assistant - Python FastAPI backend with React frontend",
+  "language": "Python (backend), TypeScript/React (frontend)",
+  "build_system": "pip/uv for Python backend, npm/vite for React frontend",
+  "test_framework": "pytest for backend, vitest for frontend",
+  "build_command": "cd backend && pip install -r requirements.txt && cd ../frontend && npm install && npm run build",
+  "test_command": "cd backend && pytest tests/ && cd ../frontend && npm test",
+  "verification_instructions": "1. Install backend deps and run pytest. 2. Install frontend deps and run npm test. 3. Start backend with uvicorn and verify API health endpoint. 4. Build frontend and verify no build errors.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt. 2. cd frontend && npm install.",
+  "environment_constraints": "OPEN_INTERNET - full external access. Python 3.11.14 available, Node v22 available. Can install any packages.",
+  "contribution_requirements": "Greenfield project - no existing contribution guidelines. Code should be clean, well-documented, and follow standard Python/TypeScript conventions.",
+  "key_patterns": "Knowledge base is in skills/knowledge/ directory with ~40 markdown files covering research methodology, APA 7, scientific method. These must be indexed and used as reference material by the AI system.",
+  "relevant_files": [
+    "skills/knowledge/5_MANUAL APA 7.md",
+    "skills/knowledge/1_Aristides vara horna Siete pasos para una tesis.md",
+    "skills/knowledge/Metodología de la Investigación Sampieri (1).md",
+    "skills/knowledge/3_Pautas_metodologicas_para_investigacione.md",
+    "skills/knowledge/GUIA DE INVESTIGACION  -  EDUCACION.md"
+  ],
+  "directory_structure": "/ (root) - skills/knowledge/ contains ~40 markdown files with research methodology books. Application will be built as: backend/ (Python FastAPI), frontend/ (React+Vite), shared knowledge base accessed from skills/knowledge/"
+}
