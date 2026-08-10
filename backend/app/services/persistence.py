@@ -1,4 +1,4 @@
-"""Simple file-based JSON persistence for projects and workflow states."""
+"""Persistence service with factory pattern for JSON or PostgreSQL backends."""
 
 import json
 import os
@@ -8,7 +8,7 @@ from typing import Any, Optional
 from app.core.config import settings
 
 
-class PersistenceService:
+class JsonPersistenceService:
     """File-based JSON persistence service.
 
     Saves data to a data/ directory with separate files for projects
@@ -90,3 +90,38 @@ class PersistenceService:
             except (json.JSONDecodeError, OSError):
                 continue
         return workflows
+
+    def save_ai_config(self, config: dict[str, Any]) -> None:
+        """Save AI configuration to a JSON file."""
+        config_file = Path(settings.storage_path) / "ai_config.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def load_ai_config(self) -> Optional[dict[str, Any]]:
+        """Load AI configuration from a JSON file."""
+        config_file = Path(settings.storage_path) / "ai_config.json"
+        if not config_file.exists():
+            return None
+        try:
+            return json.loads(config_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+
+
+# Keep backward compatibility alias
+PersistenceService = JsonPersistenceService
+
+
+def get_persistence_service():
+    """Factory function that returns the appropriate persistence service.
+
+    Returns PostgresPersistenceService if DATABASE_URL is configured,
+    otherwise returns JsonPersistenceService.
+    """
+    if settings.database_url:
+        from app.services.persistence_postgres import PostgresPersistenceService
+        return PostgresPersistenceService()
+    return JsonPersistenceService()

@@ -1,21 +1,34 @@
 """FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import projects, workflow, documents, knowledge, ai_config
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: initialize database tables on startup if configured."""
+    if settings.database_url:
+        from app.db.init_db import create_tables
+        create_tables()
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     description="AI-powered research assistant that guides users through the scientific research process",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
-# CORS middleware
+# CORS middleware - uses effective_cors_origins which includes FRONTEND_URL if set
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=settings.effective_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

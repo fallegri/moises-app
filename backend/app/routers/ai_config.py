@@ -1,7 +1,6 @@
 """AI configuration endpoints for runtime API key, base URL, and model management."""
 
 import json
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -9,10 +8,14 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.services.persistence import get_persistence_service
 
 router = APIRouter()
 
-# Path to the persisted AI configuration file
+# Persistence service for AI config storage
+_persistence = get_persistence_service()
+
+# Path to the persisted AI configuration file (used by JSON fallback and tests)
 _CONFIG_FILE = Path(settings.storage_path) / "ai_config.json"
 
 
@@ -82,7 +85,7 @@ async def get_ai_config():
 
 @router.put("", response_model=AIConfigResponse)
 async def update_ai_config(config: AIConfigRequest):
-    """Update the AI configuration. Persists to disk."""
+    """Update the AI configuration. Persists to storage."""
     # Load existing config to preserve fields not being updated
     existing = load_ai_config() or {}
 
