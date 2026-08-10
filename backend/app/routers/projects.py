@@ -7,12 +7,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.models.research_project import ResearchProject, ProjectStatus
-from app.services.persistence import PersistenceService
+from app.services.persistence import get_persistence_service
 
 router = APIRouter()
 
-# Persistence service
-_persistence = PersistenceService()
+# Persistence service (uses PostgreSQL if DATABASE_URL set, else JSON files)
+_persistence = get_persistence_service()
 
 # In-memory storage backed by file persistence
 _projects: dict[str, ResearchProject] = {}

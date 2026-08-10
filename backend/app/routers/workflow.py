@@ -8,13 +8,13 @@ from pydantic import BaseModel
 from app.models.workflow import WorkflowState, WorkflowPhase
 from app.models.research_project import ResearchProject, RefinedProblem
 from app.services.workflow_engine import WorkflowEngine
-from app.services.persistence import PersistenceService
+from app.services.persistence import get_persistence_service
 from app.routers.projects import _projects, _persist_project
 
 router = APIRouter()
 
-# Persistence service
-_persistence = PersistenceService()
+# Persistence service (uses PostgreSQL if DATABASE_URL set, else JSON files)
+_persistence = get_persistence_service()
 
 # In-memory workflow states backed by file persistence
 _workflow_states: dict[str, WorkflowState] = {}

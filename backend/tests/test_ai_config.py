@@ -10,13 +10,20 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.routers.ai_config import load_ai_config, save_ai_config, _mask_api_key
+from app.services.persistence import JsonPersistenceService
 
 
 @pytest.fixture(autouse=True)
 def clean_config(tmp_path, monkeypatch):
-    """Use a temporary config file for each test."""
+    """Use a temporary persistence service backed by tmp_path for each test."""
+    svc = JsonPersistenceService(data_dir=str(tmp_path / "data"))
+    monkeypatch.setattr("app.routers.ai_config._persistence", svc)
+    # Also patch storage_path so the JSON persistence service writes ai_config.json in tmp
+    monkeypatch.setattr("app.core.config.settings.storage_path", str(tmp_path))
+    # Re-create service with patched settings to use new storage_path for ai_config
+    svc2 = JsonPersistenceService(data_dir=str(tmp_path / "data"))
+    monkeypatch.setattr("app.routers.ai_config._persistence", svc2)
     config_file = tmp_path / "ai_config.json"
-    monkeypatch.setattr("app.routers.ai_config._CONFIG_FILE", config_file)
     yield config_file
 
 
@@ -131,7 +138,6 @@ class TestLoadSaveConfig:
 
     def test_save_and_load(self, clean_config, monkeypatch):
         """save_ai_config persists data that load_ai_config can read."""
-        monkeypatch.setattr("app.routers.ai_config._CONFIG_FILE", clean_config)
         save_ai_config({"api_key": "test123", "base_url": "http://x", "model": "m"})
         result = load_ai_config()
         assert result["api_key"] == "test123"
