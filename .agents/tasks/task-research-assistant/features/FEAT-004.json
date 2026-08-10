@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Fix 7 integration issues identified in code review: URL path mismatch, content-type mismatch, coherence fail-open, no persistence, knowledge upload no-op, no API key validation, and state-of-art checkbox logic",
+  "status": "completed",
+  "steps": [
+    "Add /api prefix to all backend routers in main.py to match frontend expectations",
+    "Simplify nginx.conf to only proxy /api/ and /health (all routes are under /api now)",
+    "Change frontend submitInput to send JSON instead of multipart/form-data",
+    "Change coherence validation _parse_coherence_result default return from True to False (fail-closed)",
+    "Add PersistenceService with file-based JSON storage in data/ directory",
+    "Integrate persistence into projects and workflow routers",
+    "Fix knowledge upload to append parsed content to knowledge base documents list",
+    "Add lazy client initialization with API key validation in AIService",
+    "Add STATE_OF_ART phase handling in workflow engine with study tracking",
+    "Add /state-of-art/add-study and /state-of-art/no-more-studies endpoints",
+    "Add state-of-art constraint check in advance endpoint",
+    "Update all integration test paths from /projects to /api/projects etc.",
+    "Add new tests for state-of-art, knowledge upload persistence, and coherence fail-closed"
+  ],
+  "acceptance_criteria": [
+    "Frontend requests to /api/projects reach the backend correctly",
+    "Frontend submitInput sends JSON body matching backend SubmitInputRequest model",
+    "Ambiguous AI coherence responses block advancement (fail-closed)",
+    "Projects and workflow states persist to disk and survive process restarts",
+    "Uploaded knowledge files become searchable in the knowledge base",
+    "AIService raises clear AIServiceConfigError when AI_API_KEY is empty",
+    "State-of-art requires 6 studies or no_more_studies_found flag to advance",
+    "All 65 backend tests pass",
+    "All 10 frontend tests pass",
+    "Frontend builds without errors"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/moises-app/frontend && npm test",
+    "cd /projects/sandbox/moises-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 65 backend tests pass (59 original + 6 new). All 10 frontend tests pass. Frontend build succeeds. Persistence uses ./storage/data/ directory which is already in .gitignore. AI service now uses lazy client initialization with property pattern."
+}

@@ -1,0 +1,49 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Frontend application - React/TypeScript SPA with step-by-step research workflow UI, file upload, AI interaction display, and document download",
+  "status": "completed",
+  "steps": [
+    "Create frontend/ directory with Vite + React + TypeScript project: npm create vite@latest frontend -- --template react-ts",
+    "Install additional dependencies: axios, react-router-dom, @tanstack/react-query, tailwindcss, @headlessui/react, react-dropzone, react-markdown, lucide-react",
+    "Configure Tailwind CSS with a clean academic/professional theme (blue/slate color palette)",
+    "Create frontend/src/api/client.ts with axios instance configured to call backend API, and typed API functions for all backend endpoints",
+    "Create frontend/src/types/research.ts with TypeScript interfaces matching all backend Pydantic models (ResearchProject, WorkflowState, Phase, etc.)",
+    "Create frontend/src/components/Layout.tsx with app shell: sidebar showing workflow phases as a progress stepper, main content area, header with project name",
+    "Create frontend/src/components/WorkflowStepper.tsx showing all research phases as a vertical stepper with completed/current/upcoming states",
+    "Create frontend/src/components/PhaseContent.tsx that renders the current phase content: instructions from AI, tasks for the user, input areas",
+    "Create frontend/src/components/TextInput.tsx with rich text area for user to write their problem description, responses to AI tasks, etc.",
+    "Create frontend/src/components/FileUpload.tsx with drag-and-drop zone supporting .docx, .xlsx, .md files, showing upload progress and parsed content preview",
+    "Create frontend/src/components/AIResponse.tsx for displaying AI analysis results, suggestions, and options (like the 3 problem formulations to choose from)",
+    "Create frontend/src/components/OptionSelector.tsx for selecting from AI-generated options (radio buttons or cards for problem formulations, research questions, etc.)",
+    "Create frontend/src/components/StateOfArtMatrix.tsx for displaying and managing the state-of-the-art matrix (table with 6+ similar studies, their findings, methodology, relevance). Includes 'No more research found' checkbox.",
+    "Create frontend/src/components/VariableMatrix.tsx for displaying the variable conceptualization matrix (variables, dimensions, indicators, instruments)",
+    "Create frontend/src/components/DocumentDownload.tsx for generating and downloading APA 7 formatted documents per chapter",
+    "Create frontend/src/components/CoherenceValidation.tsx showing AI validation results with pass/fail indicators and suggestions for improvement",
+    "Create frontend/src/components/KnowledgeBase.tsx for browsing available knowledge base documents and uploading additional literature",
+    "Create frontend/src/pages/Home.tsx with project creation/selection and overview of the system's capabilities",
+    "Create frontend/src/pages/Project.tsx as the main workspace page containing WorkflowStepper + PhaseContent + actions",
+    "Create frontend/src/pages/Documents.tsx for viewing and downloading all generated documents for a project",
+    "Create frontend/src/App.tsx with React Router configuration for all pages",
+    "Create frontend/src/hooks/useWorkflow.ts custom hook using React Query for workflow state management and mutations",
+    "Create frontend/src/__tests__/App.test.tsx with basic render tests",
+    "Create frontend/src/__tests__/WorkflowStepper.test.tsx with tests for phase progression display"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd frontend && npm install' installs all dependencies without errors",
+    "Running 'cd frontend && npm run build' produces a production build without errors",
+    "Running 'cd frontend && npm test' passes all tests",
+    "The UI displays a clear step-by-step workflow with all research phases visible",
+    "File upload component accepts .docx, .xlsx, and .md files",
+    "AI responses are displayed clearly with selectable options where applicable",
+    "The state-of-the-art matrix is interactive and includes the 'no more research found' checkbox",
+    "Document download triggers generation and provides .docx files"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app/frontend && npm install",
+    "cd /projects/sandbox/moises-app/frontend && npm run build",
+    "cd /projects/sandbox/moises-app/frontend && npx vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": "All 10 tests pass (4 App tests + 6 WorkflowStepper tests). Build produces clean production output. Used Tailwind CSS v4 with @tailwindcss/vite plugin. Vitest v4 requires separate vitest.config.ts file (cannot embed test config in vite.config.ts without type errors). TypeScript 6.0 with strict mode. React Router v7, React Query v5. Spanish language UI throughout. API proxy configured in vite dev server for /api and /health routes."
+}

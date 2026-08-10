@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "UI-based AI configuration - Add backend endpoint and frontend form to configure AI API key, base URL, and model from the UI instead of .env",
+  "status": "completed",
+  "steps": [
+    "Create backend/app/routers/ai_config.py with GET and PUT endpoints for AI configuration (api_key, base_url, model) persisted to JSON file in storage",
+    "Register the new ai_config router in backend/app/main.py",
+    "Update AIService to check runtime-configured credentials (from persistent storage) before falling back to .env settings",
+    "Create frontend/src/components/AIConfig.tsx with a form for api_key (masked display), base_url, and model",
+    "Add API client functions in frontend/src/api/client.ts for get/save AI config",
+    "Integrate the AIConfig component into the Layout or KnowledgeBase area",
+    "Add backend test for ai_config endpoints",
+    "Add frontend type for AIConfig"
+  ],
+  "acceptance_criteria": [
+    "Backend GET /api/ai-config returns current config with api_key masked (only last 4 chars visible)",
+    "Backend PUT /api/ai-config saves new config to persistent JSON file",
+    "AIService uses runtime config if available, then falls back to .env",
+    "Frontend displays AI config form with masked key display",
+    "Config persists across server restarts",
+    "All existing tests continue to pass"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/moises-app/frontend && npm test",
+    "cd /projects/sandbox/moises-app/frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "All 75 backend tests pass (65 existing + 10 new for ai_config). All 10 frontend tests pass. Frontend production build succeeds. The AIService now resolves config in priority order: explicit constructor params > runtime config from UI (persisted JSON) > .env settings. The config file is stored at storage/ai_config.json. The Settings page is accessible via /settings route from the navigation bar."
+}

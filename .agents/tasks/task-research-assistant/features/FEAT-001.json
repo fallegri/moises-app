@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Backend foundation - FastAPI application with project structure, AI integration layer, knowledge base indexing, file upload/parsing, and research workflow engine",
+  "status": "completed",
+  "steps": [
+    "Create backend/ directory with FastAPI project structure: main.py, routers/, services/, models/, schemas/, utils/, tests/",
+    "Create backend/requirements.txt with dependencies: fastapi, uvicorn, python-multipart, python-docx, openpyxl, markdown, openai, pydantic, pytest, httpx, python-jose, aiofiles",
+    "Create backend/app/main.py with FastAPI app, CORS middleware (allow frontend origin), and health check endpoint",
+    "Create backend/app/models/research_project.py with Pydantic models for the research workflow phases: ProblemDescription, RefinedProblem, ResearchQuestion, SpecificProblems, Objective, SpecificObjectives, MethodologicalFramework, StateOfArtMatrix, VariableConceptualizationMatrix, DataCollectionInstruments",
+    "Create backend/app/models/workflow.py with WorkflowState model tracking current phase, completed phases, and all accumulated data per project",
+    "Create backend/app/services/ai_service.py with AIService class that supports multiple backends (OpenAI-compatible including NVIDIA integrate endpoint, configurable via environment variables). Methods: analyze_problem(), suggest_instruments(), refine_problem(), generate_research_questions(), validate_coherence(), generate_chapter()",
+    "Create backend/app/services/knowledge_base.py with KnowledgeBaseService that indexes all markdown files from skills/knowledge/, provides search/retrieval of relevant sections, and builds context prompts from the knowledge base content",
+    "Create backend/app/services/file_parser.py with FileParserService supporting .docx (python-docx), .xlsx (openpyxl), and .md (markdown) file parsing to extract text content",
+    "Create backend/app/services/document_generator.py with DocumentGeneratorService that generates APA 7 formatted documents (Word .docx output) for each completed chapter, following rules from the APA 7 manual in the knowledge base",
+    "Create backend/app/services/workflow_engine.py with WorkflowEngine class managing the step-by-step research process: phases are (1) Problem Identification, (2) Problem Refinement with 3 formulations, (3) Research Question, (4) State of the Art / Background with matrix, (5) Specific Problems, (6) Research Objective, (7) Specific Objectives, (8) Methodological Framework with variable conceptualization matrix, (9) Data Collection Instruments. Each phase validates coherence before advancing.",
+    "Create backend/app/routers/projects.py with CRUD endpoints for research projects",
+    "Create backend/app/routers/workflow.py with endpoints: POST /workflow/{project_id}/submit-input (submit text/files for current phase), GET /workflow/{project_id}/status (get current phase and tasks), POST /workflow/{project_id}/advance (advance to next phase after validation), POST /workflow/{project_id}/select-option (select from AI-generated options like problem formulations)",
+    "Create backend/app/routers/documents.py with endpoints: POST /documents/{project_id}/generate/{chapter} (generate APA 7 doc for a chapter), GET /documents/{project_id}/download/{chapter} (download generated document)",
+    "Create backend/app/routers/knowledge.py with endpoints: GET /knowledge/search?q=query (search knowledge base), POST /knowledge/upload (upload additional literature files)",
+    "Create backend/app/core/config.py with Settings class using pydantic-settings for AI provider configuration (api_key, base_url, model), app settings, and file storage paths",
+    "Create backend/app/core/prompts.py with all AI prompt templates for each workflow phase, incorporating methodology from the knowledge base books (scientific method steps, APA formatting rules, coherence validation criteria)",
+    "Create backend/tests/test_workflow.py with tests for the workflow engine phases and transitions",
+    "Create backend/tests/test_file_parser.py with tests for file parsing (docx, xlsx, md)",
+    "Create backend/tests/test_ai_service.py with tests for AI service (mocked responses)",
+    "Create a .env.example file at backend/.env.example with all required environment variables documented"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd backend && pip install -r requirements.txt' installs all dependencies without errors",
+    "Running 'cd backend && pytest tests/' passes all tests",
+    "Running 'cd backend && uvicorn app.main:app --port 8000' starts the server and GET /health returns 200",
+    "The knowledge base service can load and search across all markdown files in skills/knowledge/",
+    "The workflow engine correctly tracks phases and prevents skipping ahead without validation",
+    "File parser correctly extracts text from .docx, .xlsx, and .md files",
+    "AI service is properly abstracted to support OpenAI-compatible endpoints via configuration"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app/backend && pip install -r requirements.txt",
+    "cd /projects/sandbox/moises-app/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/moises-app/backend && python -c \"from app.main import app; print('App imports successfully')\"",
+    "cd /projects/sandbox/moises-app/backend && python -c \"from app.services.knowledge_base import KnowledgeBaseService; kb = KnowledgeBaseService(); print(f'Loaded {len(kb.documents)} documents')\""
+  ],
+  "blocked_reason": null,
+  "findings": "All 36 tests pass. pyenv global 3.11.15 required for correct Python. pip install works with OPEN_INTERNET. Knowledge base loads 42 documents from skills/knowledge/. Health endpoint returns 200. All routers functional. pydantic-settings needs python-dotenv as dependency (auto-installed)."
+}

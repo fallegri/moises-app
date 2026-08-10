@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Integration, end-to-end workflow testing, and deployment configuration - connect frontend to backend, verify full workflow, add Docker configuration",
+  "status": "completed",
+  "steps": [
+    "Create docker-compose.yml at project root with backend and frontend services, proper volume mounts for the knowledge base",
+    "Create backend/Dockerfile with Python 3.11 base, requirements installation, uvicorn startup",
+    "Create frontend/Dockerfile with Node build stage and nginx serve stage",
+    "Update frontend vite.config.ts with proxy configuration to forward /api calls to backend during development",
+    "Update backend/app/main.py to serve the frontend build in production (or configure nginx in Docker)",
+    "Create backend/tests/test_integration.py with integration tests that test the full workflow: create project -> submit problem -> get AI analysis -> select formulation -> advance through phases",
+    "Create a README.md at project root with: project description, architecture overview, setup instructions (local dev and Docker), environment variables documentation, usage guide explaining the research workflow phases",
+    "Verify the complete workflow: start both services, create a project, go through problem identification, refinement, research question generation, and document generation"
+  ],
+  "acceptance_criteria": [
+    "docker-compose.yml is valid and defines both services correctly",
+    "Backend Dockerfile builds successfully",
+    "Frontend Dockerfile builds successfully",
+    "Integration tests pass exercising the workflow phases",
+    "README.md documents the full setup and usage process",
+    "The frontend proxy correctly forwards API requests to the backend in development mode"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app && docker build -t moises-backend ./backend",
+    "cd /projects/sandbox/moises-app && docker build -t moises-frontend ./frontend",
+    "cd /projects/sandbox/moises-app/backend && python -m pytest tests/test_integration.py -v"
+  ],
+  "blocked_reason": null,
+  "findings": "All 58 backend tests pass (36 existing + 22 new integration tests). All 10 frontend tests pass. Both Docker images (backend and frontend) build successfully. The integration tests mock the AI service at the module-level engine instance to avoid real API calls. The vite proxy was already configured in FEAT-002 for /api and /health routes."
+}
