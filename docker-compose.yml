@@ -1,5 +1,3 @@
-version: "3.8"
-
 # NOTE: This application uses in-memory data structures backed by file persistence.
 # It must run with a single Uvicorn worker (the default). Multiple workers or
 # replicas will have divergent in-memory state. This is acceptable for MVP; for
