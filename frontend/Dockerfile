@@ -9,6 +9,10 @@ RUN npm install
 
 # Copy source code and build
 COPY . .
+
+# Ensure no VITE_API_URL leaks into the build — empty value means axios
+# uses relative paths, which nginx proxies to the backend container.
+ENV VITE_API_URL=""
 RUN npm run build
 
 # Production stage
