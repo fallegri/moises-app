@@ -3,9 +3,30 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Protocol, runtime_checkable
 
 from app.core.config import settings
+
+
+@runtime_checkable
+class PersistenceProtocol(Protocol):
+    """Protocol defining the persistence service interface.
+
+    Both JsonPersistenceService and PostgresPersistenceService must conform
+    to this interface. Using typing.Protocol enables static type checking
+    without requiring explicit inheritance.
+    """
+
+    def save_project(self, project_id: str, project_data: dict[str, Any]) -> None: ...
+    def load_project(self, project_id: str) -> Optional[dict[str, Any]]: ...
+    def delete_project(self, project_id: str) -> None: ...
+    def load_all_projects(self) -> dict[str, dict[str, Any]]: ...
+    def save_workflow(self, project_id: str, workflow_data: dict[str, Any]) -> None: ...
+    def load_workflow(self, project_id: str) -> Optional[dict[str, Any]]: ...
+    def delete_workflow(self, project_id: str) -> None: ...
+    def load_all_workflows(self) -> dict[str, dict[str, Any]]: ...
+    def save_ai_config(self, config: dict[str, Any]) -> None: ...
+    def load_ai_config(self) -> Optional[dict[str, Any]]: ...
 
 
 class JsonPersistenceService:
@@ -115,7 +136,7 @@ class JsonPersistenceService:
 PersistenceService = JsonPersistenceService
 
 
-def get_persistence_service():
+def get_persistence_service() -> PersistenceProtocol:
     """Factory function that returns the appropriate persistence service.
 
     Returns PostgresPersistenceService if DATABASE_URL is configured,

@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models for PostgreSQL persistence."""
 
-from sqlalchemy import Column, String, DateTime, Text
+from sqlalchemy import Column, String, Boolean, DateTime, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
 from datetime import datetime
@@ -46,7 +46,7 @@ class WorkflowStateDB(Base):
     completed_phases = Column(JSONB, nullable=False, default=list)
     current_tasks = Column(JSONB, nullable=False, default=list)
     phase_data = Column(JSONB, nullable=False, default=dict)
-    coherence_validated = Column(String, nullable=False, default="false")
+    coherence_validated = Column(Boolean, nullable=False, default=False)
     last_validation_message = Column(Text, nullable=True)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

@@ -1,7 +1,5 @@
 """AI configuration endpoints for runtime API key, base URL, and model management."""
 
-import json
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter
@@ -14,9 +12,6 @@ router = APIRouter()
 
 # Persistence service for AI config storage
 _persistence = get_persistence_service()
-
-# Path to the persisted AI configuration file (used by JSON fallback and tests)
-_CONFIG_FILE = Path(settings.storage_path) / "ai_config.json"
 
 
 class AIConfigRequest(BaseModel):
@@ -42,23 +37,13 @@ def _mask_api_key(key: str) -> str:
 
 
 def load_ai_config() -> Optional[dict]:
-    """Load AI configuration from persistent storage."""
-    if not _CONFIG_FILE.exists():
-        return None
-    try:
-        data = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
-        return data
-    except (json.JSONDecodeError, OSError):
-        return None
+    """Load AI configuration from the persistence service."""
+    return _persistence.load_ai_config()
 
 
 def save_ai_config(config: dict) -> None:
-    """Save AI configuration to persistent storage."""
-    _CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG_FILE.write_text(
-        json.dumps(config, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    """Save AI configuration via the persistence service."""
+    _persistence.save_ai_config(config)
 
 
 @router.get("", response_model=AIConfigResponse)

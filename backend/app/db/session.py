@@ -11,7 +11,11 @@ _SessionLocal = None
 
 
 def get_engine():
-    """Get or create the SQLAlchemy engine."""
+    """Get or create the SQLAlchemy engine.
+
+    Configures connection pool parameters suitable for hosted PostgreSQL
+    services (e.g., NeonTech) that often have low connection limits.
+    """
     global _engine
     if _engine is None and settings.database_url:
         # Convert asyncpg URL to psycopg2 if needed
@@ -20,7 +24,13 @@ def get_engine():
             url = url.replace("postgresql+asyncpg://", "postgresql://")
         elif url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql://", 1)
-        _engine = create_engine(url, pool_pre_ping=True)
+        _engine = create_engine(
+            url,
+            pool_pre_ping=True,
+            pool_size=3,
+            max_overflow=7,
+            pool_timeout=30,
+        )
     return _engine
 
 

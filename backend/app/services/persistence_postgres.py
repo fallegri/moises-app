@@ -1,11 +1,14 @@
 """PostgreSQL-based persistence service using synchronous SQLAlchemy."""
 
 import json
+import logging
 from datetime import datetime
 from typing import Any, Optional
 
 from app.db.session import get_session
 from app.db.models import ResearchProjectDB, WorkflowStateDB, AIConfigDB
+
+logger = logging.getLogger(__name__)
 
 
 class PostgresPersistenceService:
@@ -111,7 +114,7 @@ class PostgresPersistenceService:
                 existing.completed_phases = workflow_data.get("completed_phases", [])
                 existing.current_tasks = workflow_data.get("current_tasks", [])
                 existing.phase_data = workflow_data.get("phase_data", {})
-                existing.coherence_validated = str(workflow_data.get("coherence_validated", False)).lower()
+                existing.coherence_validated = bool(workflow_data.get("coherence_validated", False))
                 existing.last_validation_message = workflow_data.get("last_validation_message")
                 existing.updated_at = _parse_datetime(workflow_data.get("updated_at"))
             else:
@@ -121,7 +124,7 @@ class PostgresPersistenceService:
                     completed_phases=workflow_data.get("completed_phases", []),
                     current_tasks=workflow_data.get("current_tasks", []),
                     phase_data=workflow_data.get("phase_data", {}),
-                    coherence_validated=str(workflow_data.get("coherence_validated", False)).lower(),
+                    coherence_validated=bool(workflow_data.get("coherence_validated", False)),
                     last_validation_message=workflow_data.get("last_validation_message"),
                     updated_at=_parse_datetime(workflow_data.get("updated_at")),
                 )
@@ -204,7 +207,10 @@ class PostgresPersistenceService:
 
 
 def _parse_datetime(value) -> datetime:
-    """Parse a datetime value from various formats."""
+    """Parse a datetime value from various formats.
+
+    Logs a warning when parsing fails and falls back to the current UTC time.
+    """
     if value is None:
         return datetime.utcnow()
     if isinstance(value, datetime):
@@ -213,7 +219,16 @@ def _parse_datetime(value) -> datetime:
         try:
             return datetime.fromisoformat(value.replace("Z", "+00:00"))
         except (ValueError, TypeError):
+            logger.warning(
+                "Failed to parse datetime value %r; falling back to utcnow()",
+                value,
+            )
             return datetime.utcnow()
+    logger.warning(
+        "Unexpected datetime type %s for value %r; falling back to utcnow()",
+        type(value).__name__,
+        value,
+    )
     return datetime.utcnow()
 
 
@@ -249,7 +264,7 @@ def _workflow_db_to_dict(db_workflow: WorkflowStateDB) -> dict[str, Any]:
         "completed_phases": db_workflow.completed_phases or [],
         "current_tasks": db_workflow.current_tasks or [],
         "phase_data": db_workflow.phase_data or {},
-        "coherence_validated": db_workflow.coherence_validated == "true",
+        "coherence_validated": bool(db_workflow.coherence_validated),
         "last_validation_message": db_workflow.last_validation_message,
         "updated_at": db_workflow.updated_at.isoformat() if db_workflow.updated_at else None,
     }
