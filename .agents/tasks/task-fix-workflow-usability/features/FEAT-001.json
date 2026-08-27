@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline. Install backend and frontend dependencies and run the existing test suites so later changes are measured against a known-good starting point.",
+  "status": "completed",
+  "steps": [
+    "Backend deps: cd backend && pip install -r requirements.txt (use python3 -m pip if pip is unavailable). pytest is listed in requirements.txt.",
+    "Run backend tests: cd backend && python3 -m pytest tests/ -v. Record how many pass. All backend tests mock AIService, so no real AI key is needed.",
+    "Frontend deps: cd frontend && npm install.",
+    "Run frontend tests: cd frontend && npm test (vitest run). Record results.",
+    "Run frontend build: cd frontend && npm run build (tsc -b && vite build) to confirm the TypeScript project compiles cleanly.",
+    "Record the baseline pass/fail counts for both suites in this feature's findings field."
+  ],
+  "acceptance_criteria": [
+    "Backend dependencies install successfully and `python3 -m pytest tests/ -v` runs to completion with a recorded pass count.",
+    "Frontend dependencies install and `npm test` runs to completion with a recorded pass count.",
+    "`npm run build` completes without TypeScript errors.",
+    "Baseline results are written to findings."
+  ],
+  "verification": [
+    "cd backend && python3 -m pytest tests/ -v",
+    "cd frontend && npm test",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline established on branch fix/workflow-usability. Backend: pip install -r requirements.txt succeeded (one non-fatal dep-resolver warning: awscli wants distro<1.9.0 but 1.9.0 installed; unrelated to app, tests unaffected). `python3 -m pytest tests/ -v` => 75 passed, 0 failed in ~8.3s. All backend tests mock AIService (no AI key needed). Frontend: npm install => up to date, 0 vulnerabilities. `npm test` (vitest run) => 21 passed across 4 files (KnowledgeBase 4, WorkflowStepper 6, PhaseContent 7, App 4), 0 failed. `npm run build` (tsc -b && vite build) => compiled cleanly, no TypeScript errors (dist bundle ~376.88 kB / gzip 118.36 kB). Toolchain: pytest 7.4.3, vitest 4.1.10, vite 8.2.1, Node 22, Python 3.11 (pip installed for python3.9 interpreter but tests run fine). No source files modified in this feature."
+}

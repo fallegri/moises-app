@@ -170,8 +170,13 @@ class TestFullWorkflow:
         assert response.status_code == 200
         assert response.json()["new_phase"] == "research_question"
 
-    def test_workflow_cannot_advance_without_validation(self, client, mock_ai):
-        """Test that workflow cannot advance without coherence validation."""
+    def test_workflow_advances_with_coherence_warning(self, client, mock_ai):
+        """Coherence is now advisory: a negative result warns but does not block.
+
+        Previously an incoherent result raised a 400 and deadlocked the flow.
+        Now advancement is gated on submission; an incoherent coherence check is
+        surfaced as a non-fatal 'coherence_warning' in the response.
+        """
         # Create project and submit first input
         response = client.post("/api/projects/", json={"title": "Validation Test"})
         project_id = response.json()["id"]
@@ -180,16 +185,48 @@ class TestFullWorkflow:
         # Mock incoherent response for this test
         mock_ai.validate_coherence.return_value = "INCOHERENTE: Los datos no son consistentes."
 
-        # Submit input
+        # Submit input (this also auto-runs coherence, storing the negative result)
         client.post(
             f"/api/workflow/{project_id}/submit-input",
             json={"text": "Datos inconsistentes"},
         )
 
-        # Try to advance - should fail because coherence not validated
+        # Advance now succeeds despite the incoherent result.
+        response = client.post(f"/api/workflow/{project_id}/advance")
+        assert response.status_code == 200
+        assert response.json()["new_phase"] == "instrument_suggestion"
+
+    def test_cannot_advance_without_submission(self, client, mock_ai):
+        """Cannot advance a phase that has not been submitted yet."""
+        response = client.post("/api/projects/", json={"title": "No Submission Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        # No submit-input call -> nothing submitted for the current phase.
         response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 400
-        assert "coherence validation failed" in response.json()["detail"]
+
+    def test_status_returns_persisted_result_and_completed_task(self, client, mock_ai):
+        """GET /status exposes phase_result, per-task response_data/completed, instruction."""
+        response = client.post("/api/projects/", json={"title": "Status Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "En mi empresa hay alta rotacion de personal."},
+        )
+
+        status = client.get(f"/api/workflow/{project_id}/status").json()
+        # Task is completed and carries the AI response.
+        assert status["current_tasks"][0]["completed"] is True
+        assert status["current_tasks"][0]["response_data"] is not None
+        # Top-level persisted result for the current phase.
+        assert status["phase_result"] is not None
+        assert "identified_problem" in status["phase_result"]
+        # phase_info forwards the instruction text.
+        assert "instruction" in status["phase_info"]
+        assert status["phase_info"]["instruction"]
 
     def test_select_problem_formulation(self, client, mock_ai):
         """Test selecting a problem formulation in the refinement phase."""
@@ -526,6 +563,54 @@ class TestStateOfArt:
         assert response.status_code == 200
         assert response.json()["new_phase"] == "problem_identification_chapter"
 
+    def test_status_gates_advance_until_enough_studies(self, client, mock_ai):
+        """In state_of_art, /status must not enable advance until the studies rule is met.
+
+        Regression for the 'button enables but /advance 400s' bug: after a text
+        submit, can_advance must stay False (with an explanatory
+        advance_blocked_reason) while there are fewer than 6 studies and the
+        'no more studies' flag is unset, and flip to True once the flag is set.
+        """
+        project_id = self._advance_to_state_of_art(client, mock_ai)
+
+        # Add a couple of studies (fewer than 6) so the flag path is meaningful.
+        for i in range(2):
+            client.post(
+                f"/api/workflow/{project_id}/state-of-art/add-study",
+                json={
+                    "title": f"Study {i}",
+                    "authors": "Author",
+                    "year": 2022,
+                    "methodology": "Test",
+                    "findings": "Test",
+                    "relevance": "Test",
+                },
+            )
+
+        # Submit a synthesis so the phase is "submitted".
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "Sintesis del estado de la cuestion"},
+        )
+
+        status = client.get(f"/api/workflow/{project_id}/status").json()
+        # Submitted, but the 6-studies rule is not met -> cannot advance yet.
+        assert status["can_advance"] is False
+        assert status["advance_blocked_reason"]
+        assert "investigaciones" in status["advance_blocked_reason"]
+
+        # /advance still 400s, consistent with the disabled button.
+        assert client.post(f"/api/workflow/{project_id}/advance").status_code == 400
+
+        # Set the flag -> now the status enables advancement.
+        client.post(
+            f"/api/workflow/{project_id}/state-of-art/no-more-studies",
+            json={"no_more_studies_found": True},
+        )
+        status = client.get(f"/api/workflow/{project_id}/status").json()
+        assert status["can_advance"] is True
+        assert status["advance_blocked_reason"] is None
+
     def test_cannot_add_study_in_wrong_phase(self, client, mock_ai):
         """Test that adding studies is only allowed during state-of-art phase."""
         response = client.post("/api/projects/", json={"title": "Wrong Phase"})
@@ -567,6 +652,56 @@ class TestKnowledgeUploadPersistence:
         assert data["total_results"] > 0
         found = any("metacognicion" in r.get("filename", "").lower() for r in data["results"])
         assert found
+
+
+class TestAIUnconfiguredDegradation:
+    """Submit must degrade gracefully (no 500) when the AI is unconfigured."""
+
+    def test_submit_does_not_500_and_flow_can_advance(self, client):
+        """With no AI key, submit-input returns 200, saves input, and unblocks advance.
+
+        Reproduces the runtime where AI is unconfigured: previously submit
+        returned 500 and the flow was stuck. Now the input is persisted, an
+        advisory message is returned, the task is marked completed (bug #5), and
+        the phase can advance.
+        """
+        from app.services.ai_service import AIServiceConfigError
+
+        response = client.post("/api/projects/", json={"title": "No AI Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        unconfigured = MagicMock()
+        unconfigured.analyze_problem.side_effect = AIServiceConfigError("no key")
+        unconfigured.validate_coherence.side_effect = AIServiceConfigError("no key")
+
+        original = _engine.ai_service
+        _engine.ai_service = unconfigured
+        try:
+            submit = client.post(
+                f"/api/workflow/{project_id}/submit-input",
+                json={"text": "En mi empresa hay alta rotacion de personal."},
+            )
+            assert submit.status_code == 200
+            body = submit.json()
+            assert body["result"]["ai_unconfigured"] is True
+            assert body["result"]["user_input"] == (
+                "En mi empresa hay alta rotacion de personal."
+            )
+            # Advisory surfaced as the top-level message.
+            assert body["message"] == body["result"]["advisory_message"]
+
+            # Task completed and status allows advancing.
+            status = client.get(f"/api/workflow/{project_id}/status").json()
+            assert status["current_tasks"][0]["completed"] is True
+            assert status["can_advance"] is True
+
+            # Advance succeeds even though the AI never responded.
+            advance = client.post(f"/api/workflow/{project_id}/advance")
+            assert advance.status_code == 200
+            assert advance.json()["new_phase"] == "instrument_suggestion"
+        finally:
+            _engine.ai_service = original
 
 
 class TestCoherenceFailClosed:

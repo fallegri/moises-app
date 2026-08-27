@@ -1,12 +1,18 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Upload, FileText, X } from 'lucide-react'
-import { useState } from 'react'
 
 interface FileUploadProps {
   onFilesAccepted: (files: File[]) => void
   disabled?: boolean
+  /** Optional phase-specific note about what the file is for. */
+  purpose?: string
 }
+
+// Standardized note making clear the upload is optional and what formats are
+// accepted, consistent with the backend wording.
+const OPTIONAL_NOTE =
+  'Opcional: adjunta documentos de respaldo (.docx, .xlsx, .md). No es necesario subir archivos para continuar.'
 
 const ACCEPTED_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
@@ -14,7 +20,11 @@ const ACCEPTED_TYPES = {
   'text/markdown': ['.md'],
 }
 
-export default function FileUpload({ onFilesAccepted, disabled = false }: FileUploadProps) {
+export default function FileUpload({
+  onFilesAccepted,
+  disabled = false,
+  purpose,
+}: FileUploadProps) {
   const [stagedFiles, setStagedFiles] = useState<File[]>([])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -40,9 +50,12 @@ export default function FileUpload({ onFilesAccepted, disabled = false }: FileUp
 
   return (
     <div className="card">
-      <label className="block text-sm font-medium text-slate-700 mb-2">
+      <label className="block text-sm font-medium text-slate-700 mb-1">
         Subir archivos
       </label>
+      <p className="text-xs font-medium text-slate-600">{OPTIONAL_NOTE}</p>
+      {purpose && <p className="text-xs text-slate-500 mt-1 mb-3">{purpose}</p>}
+      {!purpose && <div className="mb-3" />}
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${

@@ -15,8 +15,17 @@ from app.models.research_project import (
     SpecificObjective,
     MethodologicalFramework,
 )
-from app.services.ai_service import AIService
+from app.services.ai_service import AIService, AIServiceConfigError
 from app.services.knowledge_base import KnowledgeBaseService
+
+
+# Advisory message shown when a phase is submitted but no AI is configured, so
+# the flow keeps working (input is persisted) instead of hard-failing with a 500.
+AI_UNCONFIGURED_MESSAGE = (
+    "La IA no esta configurada, por lo que no se genero una respuesta "
+    "automatica. Su texto se guardo correctamente. Configure la IA en el panel "
+    "de ajustes para obtener el analisis, o continue a la siguiente fase."
+)
 
 
 class WorkflowEngine:
@@ -38,93 +47,162 @@ class WorkflowEngine:
 
     def get_phase_description(self, phase: WorkflowPhase) -> dict[str, str]:
         """Get human-readable description and instructions for a phase."""
+        # Nota consistente sobre el archivo opcional, reutilizada en las fases
+        # que aceptan material de respaldo.
+        optional_upload = (
+            "Opcional: puede adjuntar documentos de respaldo (.docx, .xlsx, .md)."
+        )
+
         descriptions = {
             WorkflowPhase.PROBLEM_IDENTIFICATION: {
                 "title": "Identificacion del Problema",
                 "description": (
-                    "Describa la situacion problematica que ha observado. "
-                    "Incluya antecedentes, datos y contexto relevante."
+                    "En esta fase usted describe con sus propias palabras la "
+                    "situacion problematica que ha observado. El objetivo es que "
+                    "la IA identifique el problema aparente a partir de su relato."
                 ),
                 "instruction": (
-                    "El sistema analizara su descripcion para identificar "
-                    "el problema aparente en la situacion descrita."
+                    "Escriba en el cuadro de texto una descripcion de la situacion "
+                    "problematica: antecedentes, datos concretos (cifras, fechas, "
+                    "personas afectadas) y el contexto en que ocurre. No necesita "
+                    "subir ningun archivo para continuar. " + optional_upload
                 ),
             },
             WorkflowPhase.INSTRUMENT_SUGGESTION: {
                 "title": "Sugerencia de Instrumentos",
                 "description": (
-                    "El sistema sugiere instrumentos para recopilar mas "
-                    "informacion que ayude a identificar mejor el problema."
+                    "La IA propone instrumentos (encuestas, entrevistas, "
+                    "observaciones) para recopilar mas informacion y precisar el "
+                    "problema. Usted aplica esos instrumentos y reporta lo obtenido."
                 ),
                 "instruction": (
-                    "Utilice los instrumentos sugeridos para recopilar datos. "
-                    "Puede subir los resultados en formato Word, Excel o Markdown."
+                    "Escriba en el cuadro de texto un resumen de los datos que "
+                    "recopilo al aplicar los instrumentos sugeridos. " + optional_upload
+                    + " Los archivos ayudan a la IA a analizar mejor sus datos."
                 ),
             },
             WorkflowPhase.PROBLEM_REFINEMENT: {
                 "title": "Refinamiento del Problema",
                 "description": (
-                    "Con los datos recopilados, el sistema refinara el problema "
-                    "y ofrecera 3 formulaciones usando el metodo cientifico."
+                    "Con los datos recopilados, la IA refina el problema y ofrece "
+                    "3 formulaciones alternativas construidas con el metodo "
+                    "cientifico para que usted elija la mas adecuada."
                 ),
-                "instruction": "Seleccione la formulacion que mejor represente su problema de investigacion.",
+                "instruction": (
+                    "Escriba en el cuadro de texto los datos o hallazgos que la IA "
+                    "debe considerar para reformular el problema. Luego seleccione "
+                    "la formulacion que mejor represente su investigacion. "
+                    + optional_upload
+                ),
             },
             WorkflowPhase.RESEARCH_QUESTION: {
                 "title": "Pregunta de Investigacion",
                 "description": (
-                    "A partir del problema seleccionado, se formulara "
-                    "la pregunta de investigacion principal."
+                    "A partir del problema seleccionado, la IA formula la pregunta "
+                    "de investigacion principal que guiara todo el estudio."
                 ),
-                "instruction": "Revise y valide la pregunta de investigacion propuesta.",
+                "instruction": (
+                    "Escriba en el cuadro de texto cualquier aclaracion o enfoque "
+                    "que desee para la pregunta, luego revise y valide la pregunta "
+                    "de investigacion propuesta. " + optional_upload
+                ),
             },
             WorkflowPhase.INTRODUCTION: {
                 "title": "Capitulo: Introduccion",
-                "description": "Se generara el capitulo de introduccion de la investigacion.",
-                "instruction": "Revise el contenido generado y proporcione ajustes si es necesario.",
+                "description": (
+                    "La IA genera el capitulo de introduccion de la investigacion "
+                    "a partir de la informacion acumulada en las fases anteriores."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto los ajustes o enfasis que desea "
+                    "para la introduccion y revise el contenido generado. "
+                    + optional_upload
+                ),
             },
             WorkflowPhase.STATE_OF_ART: {
                 "title": "Antecedentes / Estado de la Cuestion",
                 "description": (
-                    "Proporcione al menos 6 investigaciones similares. "
-                    "Se construira una matriz de estado de la cuestion."
+                    "Registre al menos 6 investigaciones similares a la suya. Con "
+                    "ellas se construye la matriz del estado de la cuestion."
                 ),
                 "instruction": (
-                    "Ingrese los datos de cada investigacion similar. "
-                    "Si no encuentra 6, marque 'no mas investigaciones encontradas'."
+                    "Use el formulario para agregar cada investigacion similar "
+                    "(titulo, autores, ano, metodologia, hallazgos y relevancia). "
+                    "Si no encuentra 6, marque la casilla 'no hay mas "
+                    "investigaciones encontradas' para poder continuar. Escriba en "
+                    "el cuadro de texto una sintesis del estado de la cuestion. "
+                    + optional_upload
                 ),
             },
             WorkflowPhase.PROBLEM_IDENTIFICATION_CHAPTER: {
                 "title": "Capitulo: Identificacion del Problema",
-                "description": "Se generara el capitulo de planteamiento del problema.",
-                "instruction": "Revise y valide el capitulo generado.",
+                "description": (
+                    "La IA genera el capitulo de planteamiento del problema "
+                    "integrando el problema identificado y los antecedentes."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto los ajustes que desea y revise "
+                    "el capitulo generado. " + optional_upload
+                ),
             },
             WorkflowPhase.SPECIFIC_PROBLEMS: {
                 "title": "Problemas Especificos",
-                "description": "Se derivaran los problemas especificos del problema principal.",
-                "instruction": "Revise los problemas especificos propuestos.",
+                "description": (
+                    "La IA deriva los problemas especificos a partir del problema "
+                    "principal para desagregar el objeto de estudio."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto cualquier precision y revise los "
+                    "problemas especificos propuestos. " + optional_upload
+                ),
             },
             WorkflowPhase.RESEARCH_OBJECTIVE: {
                 "title": "Objetivo de Investigacion",
-                "description": "Se formulara el objetivo general de la investigacion.",
-                "instruction": "Valide que el objetivo sea coherente con la pregunta de investigacion.",
+                "description": (
+                    "La IA formula el objetivo general de la investigacion, "
+                    "alineado con la pregunta de investigacion."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto ajustes al enfoque y valide que "
+                    "el objetivo sea coherente con la pregunta de investigacion. "
+                    + optional_upload
+                ),
             },
             WorkflowPhase.SPECIFIC_OBJECTIVES: {
                 "title": "Objetivos Especificos",
-                "description": "Se formularan los objetivos especificos alineados a los problemas especificos.",
-                "instruction": "Verifique la coherencia entre objetivos especificos y problemas especificos.",
+                "description": (
+                    "La IA formula los objetivos especificos alineados con los "
+                    "problemas especificos definidos antes."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto sus observaciones y verifique la "
+                    "coherencia entre objetivos especificos y problemas "
+                    "especificos. " + optional_upload
+                ),
             },
             WorkflowPhase.METHODOLOGICAL_FRAMEWORK: {
                 "title": "Marco Metodologico",
                 "description": (
-                    "Se definira el marco metodologico incluyendo la "
-                    "matriz de conceptualizacion de variables."
+                    "Se define el marco metodologico, incluyendo la matriz de "
+                    "conceptualizacion y operacionalizacion de variables."
                 ),
-                "instruction": "Revise la operacionalizacion de variables propuesta.",
+                "instruction": (
+                    "Escriba en el cuadro de texto el enfoque metodologico deseado "
+                    "y revise la operacionalizacion de variables propuesta. "
+                    + optional_upload
+                ),
             },
             WorkflowPhase.DATA_COLLECTION_INSTRUMENTS: {
                 "title": "Instrumentos de Recoleccion de Datos",
-                "description": "Se diseñaran los instrumentos para recopilar informacion.",
-                "instruction": "Revise los instrumentos propuestos para la recoleccion de datos.",
+                "description": (
+                    "La IA disena los instrumentos para recopilar la informacion "
+                    "necesaria segun el marco metodologico. Esta es la fase final."
+                ),
+                "instruction": (
+                    "Escriba en el cuadro de texto los requisitos de sus "
+                    "instrumentos y revise los instrumentos de recoleccion "
+                    "propuestos. " + optional_upload
+                ),
             },
         }
         return descriptions.get(
@@ -143,91 +221,121 @@ class WorkflowEngine:
                 PhaseTask(
                     description="Describir la situacion problematica",
                     instruction=(
-                        "Redacte una descripcion detallada de la situacion "
-                        "problematica que ha observado, incluyendo antecedentes y datos."
+                        "Escriba en el cuadro de texto la situacion problematica que "
+                        "observo: antecedentes, datos concretos y contexto. Al enviar, "
+                        "la IA identificara el problema. El archivo es opcional."
                     ),
                 )
             ],
             WorkflowPhase.INSTRUMENT_SUGGESTION: [
                 PhaseTask(
-                    description="Revisar instrumentos sugeridos",
-                    instruction="Revise los instrumentos sugeridos por el sistema para recopilar datos.",
-                ),
-                PhaseTask(
-                    description="Subir datos recopilados",
+                    description="Reportar los datos recopilados",
                     instruction=(
-                        "Suba los datos recopilados usando los instrumentos "
-                        "(archivos .docx, .xlsx o .md)."
+                        "Revise los instrumentos que sugiere la IA, aplicalos y "
+                        "escriba en el cuadro de texto un resumen de los datos que "
+                        "obtuvo. Adjuntar los resultados como archivo es opcional."
                     ),
                 ),
             ],
             WorkflowPhase.PROBLEM_REFINEMENT: [
                 PhaseTask(
-                    description="Seleccionar formulacion del problema",
+                    description="Elegir la formulacion del problema",
                     instruction=(
-                        "El sistema presentara 3 formulaciones del problema. "
-                        "Seleccione la que mejor represente su investigacion."
+                        "Escriba los datos o hallazgos que la IA debe considerar y "
+                        "envie. La IA propondra 3 formulaciones; seleccione la que "
+                        "mejor represente su investigacion. El archivo es opcional."
                     ),
                 )
             ],
             WorkflowPhase.RESEARCH_QUESTION: [
                 PhaseTask(
-                    description="Validar pregunta de investigacion",
-                    instruction="Revise y apruebe la pregunta de investigacion propuesta.",
+                    description="Validar la pregunta de investigacion",
+                    instruction=(
+                        "Escriba cualquier aclaracion de enfoque y envie para que la "
+                        "IA formule la pregunta. Luego revise y apruebe la pregunta "
+                        "de investigacion propuesta. El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.INTRODUCTION: [
                 PhaseTask(
-                    description="Revisar capitulo de introduccion",
-                    instruction="Revise el capitulo de introduccion generado.",
+                    description="Revisar el capitulo de introduccion",
+                    instruction=(
+                        "Escriba los ajustes o enfasis que desea y envie para "
+                        "generar el capitulo de introduccion. Luego revise el "
+                        "contenido generado. El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.STATE_OF_ART: [
                 PhaseTask(
-                    description="Agregar investigaciones similares",
+                    description="Registrar investigaciones similares",
                     instruction=(
-                        "Ingrese al menos 6 investigaciones similares. "
-                        "Si no encuentra mas, active la casilla correspondiente."
+                        "Agregue al menos 6 investigaciones similares con el "
+                        "formulario. Si no encuentra 6, marque 'no hay mas "
+                        "investigaciones encontradas'. Escriba una sintesis y envie. "
+                        "El archivo es opcional."
                     ),
                 )
             ],
             WorkflowPhase.PROBLEM_IDENTIFICATION_CHAPTER: [
                 PhaseTask(
-                    description="Revisar capitulo de planteamiento del problema",
-                    instruction="Revise el capitulo de planteamiento del problema generado.",
+                    description="Revisar el capitulo de planteamiento del problema",
+                    instruction=(
+                        "Escriba los ajustes que desea y envie para generar el "
+                        "capitulo de planteamiento del problema. Luego revise el "
+                        "capitulo generado. El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.SPECIFIC_PROBLEMS: [
                 PhaseTask(
-                    description="Validar problemas especificos",
-                    instruction="Revise y valide los problemas especificos derivados.",
+                    description="Validar los problemas especificos",
+                    instruction=(
+                        "Escriba cualquier precision y envie para que la IA derive "
+                        "los problemas especificos. Luego revise y valide los "
+                        "problemas propuestos. El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.RESEARCH_OBJECTIVE: [
                 PhaseTask(
-                    description="Validar objetivo de investigacion",
-                    instruction="Revise el objetivo general propuesto.",
+                    description="Validar el objetivo de investigacion",
+                    instruction=(
+                        "Escriba ajustes al enfoque y envie para que la IA formule "
+                        "el objetivo general. Luego revise el objetivo propuesto. "
+                        "El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.SPECIFIC_OBJECTIVES: [
                 PhaseTask(
-                    description="Validar objetivos especificos",
-                    instruction="Revise los objetivos especificos propuestos.",
+                    description="Validar los objetivos especificos",
+                    instruction=(
+                        "Escriba sus observaciones y envie para que la IA formule "
+                        "los objetivos especificos. Luego revise los objetivos "
+                        "propuestos. El archivo es opcional."
+                    ),
                 )
             ],
             WorkflowPhase.METHODOLOGICAL_FRAMEWORK: [
                 PhaseTask(
-                    description="Revisar marco metodologico",
+                    description="Revisar el marco metodologico",
                     instruction=(
-                        "Revise el marco metodologico y la matriz "
-                        "de conceptualizacion de variables."
+                        "Escriba el enfoque metodologico deseado y envie. Luego "
+                        "revise el marco metodologico y la matriz de "
+                        "conceptualizacion de variables. El archivo es opcional."
                     ),
                 )
             ],
             WorkflowPhase.DATA_COLLECTION_INSTRUMENTS: [
                 PhaseTask(
-                    description="Revisar instrumentos de recoleccion",
-                    instruction="Revise los instrumentos de recoleccion de datos propuestos.",
+                    description="Revisar los instrumentos de recoleccion",
+                    instruction=(
+                        "Escriba los requisitos de sus instrumentos y envie. Luego "
+                        "revise los instrumentos de recoleccion de datos "
+                        "propuestos. El archivo es opcional."
+                    ),
                 )
             ],
         }
@@ -246,10 +354,20 @@ class WorkflowEngine:
         phase = state.current_phase
         knowledge_context = self.knowledge_base.get_context_for_phase(phase.value)
 
-        result = {}
+        result: dict[str, Any] = {}
+        # Tracks whether the AI produced a response. When False (AI unconfigured)
+        # we still persist the user's input and surface an advisory message so
+        # the flow is never stuck. The key that carries the displayable AI text
+        # per phase; `ai_response` is a shared display field the frontend can
+        # always read regardless of phase.
+        ai_unconfigured = False
 
         if phase == WorkflowPhase.PROBLEM_IDENTIFICATION:
-            ai_response = self.ai_service.analyze_problem(user_input, knowledge_context)
+            try:
+                ai_response = self.ai_service.analyze_problem(user_input, knowledge_context)
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             project.problem_description = ProblemDescription(
                 raw_text=user_input,
                 identified_problem=ai_response,
@@ -262,9 +380,13 @@ class WorkflowEngine:
                 if project.problem_description
                 else user_input
             )
-            ai_response = self.ai_service.suggest_instruments(
-                problem or user_input, knowledge_context
-            )
+            try:
+                ai_response = self.ai_service.suggest_instruments(
+                    problem or user_input, knowledge_context
+                )
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             result = {"suggested_instruments": ai_response, "uploaded_data": user_input}
 
         elif phase == WorkflowPhase.PROBLEM_REFINEMENT:
@@ -273,9 +395,13 @@ class WorkflowEngine:
                 if project.problem_description
                 else ""
             )
-            ai_response = self.ai_service.refine_problem(
-                problem or "", user_input, knowledge_context
-            )
+            try:
+                ai_response = self.ai_service.refine_problem(
+                    problem or "", user_input, knowledge_context
+                )
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             result = {"refined_formulations": ai_response}
 
         elif phase == WorkflowPhase.RESEARCH_QUESTION:
@@ -284,18 +410,26 @@ class WorkflowEngine:
                 if project.selected_problem
                 else user_input
             )
-            ai_response = self.ai_service.generate_research_questions(
-                selected, knowledge_context
-            )
+            try:
+                ai_response = self.ai_service.generate_research_questions(
+                    selected, knowledge_context
+                )
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             result = {"research_questions": ai_response}
 
         elif phase == WorkflowPhase.STATE_OF_ART:
             # Handle state-of-art phase: user submits study data
             # Parse the input as a study entry and add to the project's state_of_art
             project_context = self._build_project_context(project)
-            ai_response = self.ai_service.generate_chapter(
-                phase.value, user_input, project_context, knowledge_context
-            )
+            try:
+                ai_response = self.ai_service.generate_chapter(
+                    phase.value, user_input, project_context, knowledge_context
+                )
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             result = {
                 "generated_content": ai_response,
                 "studies_count": len(project.state_of_art.studies),
@@ -309,12 +443,50 @@ class WorkflowEngine:
         else:
             # For chapter generation phases
             project_context = self._build_project_context(project)
-            ai_response = self.ai_service.generate_chapter(
-                phase.value, user_input, project_context, knowledge_context
-            )
+            try:
+                ai_response = self.ai_service.generate_chapter(
+                    phase.value, user_input, project_context, knowledge_context
+                )
+            except AIServiceConfigError:
+                ai_unconfigured = True
+                ai_response = ""
             result = {"generated_content": ai_response}
 
+        # Always persist the user's raw submission so nothing is lost, even when
+        # the AI could not respond.
+        result["user_input"] = user_input
+
+        # Shared display field the frontend renders for ANY phase. When the AI
+        # is unconfigured, carry the advisory message so the user understands
+        # why there is no analysis and that their input was still saved.
+        if ai_unconfigured:
+            result["ai_response"] = ""
+            result["ai_unconfigured"] = True
+            result["advisory_message"] = AI_UNCONFIGURED_MESSAGE
+        else:
+            result["ai_response"] = ai_response
+
         state.phase_data[phase.value] = result
+
+        # Mark the phase's task(s) as completed and attach the AI result so it
+        # is inspectable per-task and survives serialization. For phases with a
+        # single task this marks that task; for multi-task phases we mark the
+        # task(s) satisfied by a text/file submission.
+        if state.current_tasks:
+            for task in state.current_tasks:
+                task.completed = True
+                task.response_data = result
+
+        # Auto-run coherence validation so coherence_validated reflects the
+        # AI's opinion when an AI is available. This is now ADVISORY only and
+        # does not gate advancement (see WorkflowState.can_advance).
+        try:
+            self.validate_phase_coherence(state, project)
+        except Exception:
+            # A failing/unconfigured AI must never block the workflow. Leave
+            # coherence as-is; advancement is gated on task completion.
+            pass
+
         return result
 
     def validate_phase_coherence(

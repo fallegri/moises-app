@@ -62,12 +62,30 @@ class WorkflowState(BaseModel):
         """Get the index of the current phase."""
         return PHASE_ORDER.index(self.current_phase)
 
+    def _current_phase_submitted(self) -> bool:
+        """Return True if the current phase has a stored submission.
+
+        A phase is considered submitted when all of its current tasks are
+        marked completed, or (as a fallback) when phase_data holds a result
+        for the current phase. This is what gates advancement now, so a phase
+        can never be permanently blocked by coherence validation.
+        """
+        if self.current_tasks:
+            if all(task.completed for task in self.current_tasks):
+                return True
+        return self.current_phase.value in self.phase_data
+
     def can_advance(self) -> bool:
-        """Check if the workflow can advance to the next phase."""
-        if not self.coherence_validated:
-            return False
+        """Check if the workflow can advance to the next phase.
+
+        Advancement is gated on the current phase having been submitted (its
+        tasks completed / phase_data populated) and not being the last phase.
+        Coherence validation is ADVISORY and no longer blocks advancement.
+        """
         current_idx = self.get_phase_index()
-        return current_idx < len(PHASE_ORDER) - 1
+        if current_idx >= len(PHASE_ORDER) - 1:
+            return False
+        return self._current_phase_submitted()
 
     def advance_phase(self) -> Optional[WorkflowPhase]:
         """Advance to the next phase if possible."""

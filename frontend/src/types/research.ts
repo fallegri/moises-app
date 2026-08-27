@@ -23,16 +23,20 @@ export interface Task {
   description: string
   instruction: string
   completed: boolean
+  response_data?: any
 }
 
 export interface WorkflowStatus {
   project_id: string
   current_phase: PhaseId
-  phase_info: { title: string; description: string }
+  phase_info: { title: string; description: string; instruction?: string }
   completed_phases: PhaseId[]
   current_tasks: Task[]
+  phase_result?: Record<string, any> | null
   coherence_validated: boolean
+  last_validation_message?: string | null
   can_advance: boolean
+  advance_blocked_reason?: string | null
 }
 
 export interface SubmitInputResponse {

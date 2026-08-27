@@ -68,20 +68,40 @@ class TestWorkflowState:
         assert state.get_phase_index() == 2
 
     def test_cannot_advance_without_validation(self):
-        """Test that phase cannot advance without coherence validation."""
+        """A fresh state (nothing submitted) cannot advance.
+
+        Advancement is now gated on the current phase being submitted (its
+        tasks completed / phase_data populated), not on coherence. A fresh
+        state has no submission, so can_advance() must be False. This assertion
+        still holds under the new submission-based gating.
+        """
         state = WorkflowState(project_id="test-123")
         assert state.can_advance() is False
 
-    def test_can_advance_after_validation(self):
-        """Test that phase can advance after coherence is validated."""
+    def test_can_advance_after_submission(self):
+        """A phase can advance once it has been submitted.
+
+        Coherence is now ADVISORY and no longer gates advancement. What matters
+        is that the current phase's tasks are completed (i.e. the user has
+        submitted). This replaces the old coherence-based gating: setting
+        coherence_validated alone is no longer sufficient.
+        """
         state = WorkflowState(project_id="test-123")
+        # Coherence validated but nothing submitted -> still cannot advance.
         state.coherence_validated = True
+        assert state.can_advance() is False
+
+        # Mark the current phase as submitted via phase_data -> can advance,
+        # even though coherence_validated is now irrelevant.
+        state.coherence_validated = False
+        state.phase_data[state.current_phase.value] = {"identified_problem": "x"}
         assert state.can_advance() is True
 
     def test_advance_phase(self):
-        """Test advancing to next phase."""
+        """Test advancing to next phase after submission."""
         state = WorkflowState(project_id="test-123")
-        state.coherence_validated = True
+        # Submission (not coherence) is what enables advancement now.
+        state.phase_data[state.current_phase.value] = {"identified_problem": "x"}
         new_phase = state.advance_phase()
 
         assert new_phase == WorkflowPhase.INSTRUMENT_SUGGESTION
@@ -90,10 +110,11 @@ class TestWorkflowState:
         assert state.coherence_validated is False
 
     def test_cannot_advance_from_last_phase(self):
-        """Test that cannot advance from the last phase."""
+        """Test that cannot advance from the last phase even after submission."""
         state = WorkflowState(project_id="test-123")
         state.current_phase = WorkflowPhase.DATA_COLLECTION_INSTRUMENTS
-        state.coherence_validated = True
+        # Even with a submission recorded, the last phase cannot advance.
+        state.phase_data[state.current_phase.value] = {"generated_content": "x"}
         assert state.can_advance() is False
 
     def test_phase_order_completeness(self):
@@ -123,6 +144,121 @@ class TestWorkflowEngine:
         assert "identified_problem" in result
         assert project.problem_description is not None
         assert project.problem_description.raw_text == "En mi empresa hay alta rotacion de personal"
+
+    def test_process_input_marks_task_completed_and_stores_response(self, engine, project):
+        """After submitting, the phase task is completed and the AI result is stored.
+
+        Covers acceptance: task.completed becomes True and the AI response is
+        retrievable via both task.response_data and state.phase_data.
+        """
+        state = engine.initialize_workflow(project.id)
+        assert state.current_tasks[0].completed is False
+
+        result = engine.process_input(state, project, "Situacion problematica")
+
+        # Task marked completed and AI result attached per-task.
+        assert state.current_tasks[0].completed is True
+        assert state.current_tasks[0].response_data == result
+        # Result also survives in phase_data (serialized/reloaded elsewhere).
+        assert state.phase_data[WorkflowPhase.PROBLEM_IDENTIFICATION.value] == result
+        assert "identified_problem" in state.phase_data[
+            WorkflowPhase.PROBLEM_IDENTIFICATION.value
+        ]
+
+    def test_can_advance_true_after_submission_even_if_incoherent(
+        self, engine, project, mock_ai_service
+    ):
+        """can_advance() is True after submission even when coherence fails.
+
+        Coherence is advisory: a negative coherence result must not block
+        advancement once the phase has been submitted.
+        """
+        mock_ai_service.validate_coherence.return_value = "INCOHERENTE: inconsistencias."
+        state = engine.initialize_workflow(project.id)
+
+        # Before any submission, cannot advance.
+        assert state.can_advance() is False
+
+        engine.process_input(state, project, "Situacion problematica")
+
+        # Coherence auto-ran and reported incoherent, yet advancement is allowed.
+        assert state.coherence_validated is False
+        assert state.can_advance() is True
+
+    def test_can_advance_false_on_last_phase_after_submission(self, engine, project):
+        """can_advance() is False on the last phase even after a submission."""
+        state = engine.initialize_workflow(project.id)
+        state.current_phase = WorkflowPhase.DATA_COLLECTION_INSTRUMENTS
+        state.current_tasks = engine._get_phase_tasks(state.current_phase)
+
+        engine.process_input(state, project, "Requisitos de instrumentos")
+
+        assert state.can_advance() is False
+
+    def test_advance_does_not_require_coherence(self, engine, project, mock_ai_service):
+        """Advancing works after a submission without a successful coherence check."""
+        mock_ai_service.validate_coherence.return_value = "INCOHERENTE: inconsistencias."
+        state = engine.initialize_workflow(project.id)
+
+        engine.process_input(state, project, "Situacion problematica")
+        new_phase = engine.advance_phase(state)
+
+        assert new_phase == WorkflowPhase.INSTRUMENT_SUGGESTION
+
+    def test_process_input_sets_shared_ai_response_for_generated_content_phase(
+        self, engine, project
+    ):
+        """A generated_content phase exposes the shared `ai_response` display field.
+
+        The frontend renders `ai_response` for every phase; verify it is populated
+        (and equals the chapter text) for a chapter-generation phase, not only for
+        problem_identification.
+        """
+        state = engine.initialize_workflow(project.id)
+        state.current_phase = WorkflowPhase.INTRODUCTION
+        state.current_tasks = engine._get_phase_tasks(state.current_phase)
+
+        result = engine.process_input(state, project, "Ajustes para la introduccion")
+
+        assert result["generated_content"] == "Capitulo generado con formato APA 7."
+        # Shared display field mirrors the per-phase content.
+        assert result["ai_response"] == "Capitulo generado con formato APA 7."
+        assert result.get("ai_unconfigured") is not True
+
+    def test_process_input_degrades_gracefully_when_ai_unconfigured(self, project):
+        """When the AI is unconfigured, submit persists input and does not raise.
+
+        The AI call raises AIServiceConfigError; process_input must catch it,
+        keep the user's raw input, mark the task completed, and flag the result
+        with an advisory message so the flow is never stuck.
+        """
+        from app.services.ai_service import AIServiceConfigError
+
+        unconfigured_ai = MagicMock()
+        unconfigured_ai.analyze_problem.side_effect = AIServiceConfigError("no key")
+        unconfigured_ai.validate_coherence.side_effect = AIServiceConfigError("no key")
+        kb = MagicMock()
+        kb.get_context_for_phase.return_value = ""
+        degraded_engine = WorkflowEngine(ai_service=unconfigured_ai, knowledge_base=kb)
+
+        state = degraded_engine.initialize_workflow(project.id)
+        result = degraded_engine.process_input(
+            state, project, "En mi empresa hay alta rotacion de personal"
+        )
+
+        # No exception; input preserved and result flagged as unconfigured.
+        assert result["ai_unconfigured"] is True
+        assert result["ai_response"] == ""
+        assert result["user_input"] == "En mi empresa hay alta rotacion de personal"
+        assert result["advisory_message"]
+        # Task completed so the flow can still advance (bug #5 keeps working).
+        assert state.current_tasks[0].completed is True
+        assert state.can_advance() is True
+        # Raw input preserved on the project.
+        assert (
+            project.problem_description.raw_text
+            == "En mi empresa hay alta rotacion de personal"
+        )
 
     def test_process_input_instrument_suggestion(self, engine, project):
         """Test processing input for instrument suggestion phase."""

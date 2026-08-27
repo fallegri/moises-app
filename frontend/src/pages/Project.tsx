@@ -96,6 +96,14 @@ export default function Project() {
     })
   }
 
+  // Surface the backend detail if /advance rejects (e.g. the state_of_art
+  // 6-studies rule), so the user understands why the flow did not advance
+  // instead of the button appearing to do nothing.
+  const advanceError = advanceWorkflow.error as
+    | { response?: { data?: { detail?: string } } }
+    | null
+  const advanceErrorMessage = advanceError?.response?.data?.detail ?? null
+
   const handleValidate = async () => {
     const result = await validateCoherence.mutateAsync()
     setValidationResult(result)
@@ -156,11 +164,18 @@ export default function Project() {
               onAdvance={handleAdvance}
               isSubmitting={isSubmitting}
               submitResult={submitInput.data}
+              advanceError={advanceErrorMessage}
             />
           )}
 
-          {/* Validation - only available after the user has submitted input */}
-          {submitInput.isSuccess && (
+          {/* Validation - advisory. Available once the current phase has been
+              submitted per persisted backend state (phase_result present or a
+              task completed), so it survives a page reload. Never required to
+              advance. */}
+          {workflow &&
+            (workflow.phase_result != null ||
+              workflow.current_tasks?.some((t) => t.completed) ||
+              submitInput.isSuccess) && (
             <div className="mt-6 space-y-4">
               <button
                 onClick={handleValidate}
