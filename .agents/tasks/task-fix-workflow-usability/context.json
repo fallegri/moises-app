@@ -1,0 +1,33 @@
+{
+  "project_type": "Full-stack research-assistant web app: FastAPI (Python) backend + React 19 + Vite + TypeScript frontend, orchestrating a 12-phase guided research workflow with an OpenAI-compatible AI service.",
+  "language": "Python 3.11 (backend), TypeScript/React 19 (frontend)",
+  "build_system": "Backend: pip + uvicorn. Frontend: npm + Vite (tsc -b && vite build). Root docker-compose.yml exists.",
+  "test_framework": "Backend: pytest (tests in backend/tests/, mocked AIService via MagicMock fixtures). Frontend: vitest + @testing-library/react (tests in frontend/src/__tests__/).",
+  "build_command": "Frontend: cd frontend && npm run build. Backend has no build step (interpreted); import-check via python.",
+  "test_command": "Backend: cd backend && python3 -m pytest tests/ -v (pytest must be installed first: pip install -r requirements.txt). Frontend: cd frontend && npm test (runs vitest run).",
+  "verification_instructions": "1) cd backend && pip install -r requirements.txt then python3 -m pytest tests/ -v. 2) cd frontend && npm install then npm test and npm run build. Baseline is expected green before changes.",
+  "snapshot_or_generated_files": "None. No snapshot/generated files checked in.",
+  "setup_instructions": "Backend: cd backend && pip install -r requirements.txt (or use python3 -m pip). Frontend: cd frontend && npm install. Node 22 and Python 3.11 are preinstalled. pytest/vitest are NOT preinstalled in the sandbox; install deps first.",
+  "environment_constraints": "Network mode OPEN_INTERNET so pip/npm installs work. The AIService requires an API key (AI_API_KEY) that is NOT configured in the sandbox; all backend tests mock AIService via MagicMock, so no real AI calls happen in tests. Do NOT make features depend on a live AI endpoint. Runtime app behavior when AI is unconfigured must degrade gracefully (this is central to bug #4).",
+  "contribution_requirements": "No CONTRIBUTING.md with special rules found. Keep existing tests passing; add new tests for new behavior. Commit on a new branch (do not push - orchestrator handles that). Note: existing code deliberately avoids accented characters in Spanish UI strings; new Spanish strings may use proper accents but keep consistency and valid UTF-8.",
+  "key_patterns": "Backend: WorkflowEngine (backend/app/services/workflow_engine.py) is stateless-ish and mutates WorkflowState + ResearchProject; routers in backend/app/routers/workflow.py call the engine then _persist_workflow(state)/_persist_project(project). WorkflowState (backend/app/models/workflow.py) holds current_tasks: list[PhaseTask], phase_data dict, coherence_validated bool, can_advance(). PhaseTask has description/instruction/completed/response_data. GET /status serializes current_tasks with description/instruction/completed only. Frontend: react-query hooks in frontend/src/hooks/useWorkflow.ts; submit mutation invalidates ['workflow', projectId] which re-fetches status. PhaseContent.tsx renders phase_info, tasks (checkboxes readOnly bound to task.completed), TextInput, FileUpload, submit-success banner and advance button (disabled unless workflow.can_advance). The AI result currently lives ONLY in submitInput.data (mutation state) and is lost on invalidation/reload. AIResponse.tsx renders markdown AI content and is currently unused in the phase flow.",
+  "relevant_files": [
+    "backend/app/services/workflow_engine.py",
+    "backend/app/models/workflow.py",
+    "backend/app/routers/workflow.py",
+    "backend/app/services/ai_service.py",
+    "backend/app/models/research_project.py",
+    "backend/tests/test_workflow.py",
+    "backend/tests/test_integration.py",
+    "frontend/src/components/PhaseContent.tsx",
+    "frontend/src/pages/Project.tsx",
+    "frontend/src/components/TextInput.tsx",
+    "frontend/src/components/FileUpload.tsx",
+    "frontend/src/components/AIResponse.tsx",
+    "frontend/src/hooks/useWorkflow.ts",
+    "frontend/src/api/client.ts",
+    "frontend/src/types/research.ts",
+    "frontend/src/__tests__/PhaseContent.test.tsx"
+  ],
+  "directory_structure": "backend/app/{models,routers,services,core}, backend/tests/. frontend/src/{components,pages,hooks,api,types}, frontend/src/__tests__/. Root docker-compose.yml, README.md."
+}

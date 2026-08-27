@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Frontend: consume the new backend fields so the workflow is clear and persistent end to end. Render the persisted AI response and saved-confirmation from GET /status (not ephemeral mutation state), show the per-phase instruction and an explicit optional-upload note, keep the task checkbox in sync with backend completion, and enable the advance button once the backend reports can_advance. Depends on FEAT-002.",
+  "status": "pending",
+  "steps": [
+    "Update frontend/src/types/research.ts: extend WorkflowStatus to include the new fields returned by GET /status - phase_info now has an optional `instruction: string`; add `phase_result?: Record<string, any> | null`; extend Task with `response_data?: any`. Keep existing fields.",
+    "Update PhaseContent.tsx so the saved-confirmation banner and the AI response render from persisted workflow data (workflow.phase_result and/or task.response_data returned by /status), not solely from the transient submitResult mutation prop. The identified problem for problem_identification should come from workflow.phase_result.identified_problem so it survives query invalidation and page reload. Keep showing the immediate submitResult too if present, but ensure that after the react-query refetch (which returns the persisted data) the banner and AI text remain visible. Prefer rendering the AI content via the existing AIResponse.tsx component (frontend/src/components/AIResponse.tsx) for consistent markdown formatting.",
+    "Render workflow.phase_info.instruction in PhaseContent.tsx under the phase title/description so users see concrete guidance for the current phase.",
+    "Clarify the input area in PhaseContent.tsx and the child components: pass a phase-appropriate label/placeholder to TextInput (frontend/src/components/TextInput.tsx) making clear the text box is for the user's written response, and add an explicit note on FileUpload (frontend/src/components/FileUpload.tsx) that the upload is OPTIONAL and what it is for in this phase. The optional/purpose text can be driven by the backend phase_info.instruction or a short frontend helper keyed by phase id; keep copy in Spanish and consistent with the backend wording (e.g. 'Opcional: adjunta documentos de respaldo (.docx, .xlsx, .md)').",
+    "The task checkbox in PhaseContent.tsx is already bound to task.completed; confirm it now reflects the backend-updated completion after the submit refetch. No manual toggling - it must derive from the refetched workflow status.",
+    "The advance button in PhaseContent.tsx is disabled unless workflow.can_advance. With FEAT-002 making can_advance true after submission, verify the button enables after a successful submit + refetch. Update the advanceBlockedMessage logic so it reads from workflow status (e.g. show 'Primero envia informacion para esta fase' only when no submission exists per the backend) rather than depending only on the transient submitResult prop; when workflow.can_advance is true, show no blocked message.",
+    "In frontend/src/pages/Project.tsx: the Validar Coherencia button/CoherenceValidation is now advisory. Gate its visibility on the persisted submission state (e.g. workflow.phase_result present or the current task completed) instead of submitInput.isSuccess, so it remains available after reload. Do not let coherence validation be required to advance. Ensure handleAdvance still resets transient validation UI state on phase change.",
+    "Update/extend frontend/src/__tests__/PhaseContent.test.tsx: the existing tests build a WorkflowStatus and pass submitResult. Add fields to the base workflow object as needed (phase_info.instruction, phase_result). Add tests: (a) the identified problem renders from workflow.phase_result even when submitResult is null (simulating a reload); (b) the saved confirmation shows based on persisted workflow data after reload; (c) the advance button is enabled when workflow.can_advance is true and disabled when false; (d) the phase instruction text renders; (e) an optional-upload note is present. Update any existing assertions that break due to the new persisted-data source, keeping their intent."
+  ],
+  "acceptance_criteria": [
+    "After submitting text in problem_identification, the AI-identified problem and a 'saved' confirmation remain visible after a react-query refetch and would remain after a page reload (they are sourced from GET /status, not mutation state).",
+    "The current phase shows a specific instruction and an explicit note that file upload is optional, in Spanish.",
+    "The task checkbox for the submitted task shows as completed after the post-submit refetch.",
+    "The 'Avanzar a la siguiente fase' button becomes enabled once the backend reports can_advance true after submission.",
+    "Coherence validation is presented as advisory and does not block advancing.",
+    "Frontend tests and build pass: cd frontend && npm test && npm run build."
+  ],
+  "verification": [
+    "cd frontend && npm test",
+    "cd frontend && npm run build"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

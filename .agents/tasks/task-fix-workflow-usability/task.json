@@ -1,0 +1,7 @@
+{
+  "task_id": "task-fix-workflow-usability",
+  "task_description": "Fix the guided research workflow so it works end to end and is clear at each step: (1) specific/actionable per-phase descriptions and instructions, (2) persistent visible confirmation and AI response after submit, (3) clear explanation of the optional file upload per phase, (4) the 'advance to next phase' button actually enables, (5) the phase task checkbox marks after submitting. Backend marks tasks complete + persists AI response + makes coherence advisory (non-deadlocking); frontend consumes persisted status so state survives re-renders/reloads.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
