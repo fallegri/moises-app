@@ -2,6 +2,7 @@ import { Loader2, CheckCircle2, Info } from 'lucide-react'
 import type { WorkflowStatus, SubmitInputResponse } from '../types/research'
 import TextInput from './TextInput'
 import FileUpload from './FileUpload'
+import AIResponse from './AIResponse'
 import StateOfArtMatrix from './StateOfArtMatrix'
 import VariableMatrix from './VariableMatrix'
 
@@ -27,17 +28,38 @@ export default function PhaseContent({
   submitResult,
 }: PhaseContentProps) {
   const phase = workflow.current_phase
+
+  // Persisted phase result from GET /status (survives react-query refetch and
+  // page reload), with the transient mutation result as an immediate fallback.
+  const phaseResult = workflow.phase_result ?? submitResult?.result ?? null
+
   const identifiedProblem =
-    submitResult?.result && typeof submitResult.result.identified_problem === 'string'
-      ? submitResult.result.identified_problem
+    phaseResult && typeof phaseResult.identified_problem === 'string'
+      ? phaseResult.identified_problem
       : ''
 
-  // Contextual message explaining why the advance button is disabled
+  // Whether this phase has been submitted, derived from persisted backend state
+  // (phase_result present or any task completed) so it survives reload. Falls
+  // back to the transient submitResult for the immediate post-submit render.
+  const hasSubmitted =
+    phaseResult !== null ||
+    (workflow.current_tasks?.some((t) => t.completed) ?? false) ||
+    Boolean(submitResult)
+
+  // Text/markdown AI response for the current phase, sourced from persisted data.
+  const aiResponseText =
+    phaseResult && typeof phaseResult === 'object'
+      ? (typeof phaseResult.response === 'string' && phaseResult.response) ||
+        (typeof phaseResult.content === 'string' && phaseResult.content) ||
+        (typeof phaseResult.text === 'string' && phaseResult.text) ||
+        ''
+      : ''
+
+  // Contextual message explaining why the advance button is disabled. Reads from
+  // the persisted workflow status: when can_advance is true, show nothing.
   let advanceBlockedMessage = ''
   if (!workflow.can_advance) {
-    if (submitResult && !workflow.coherence_validated) {
-      advanceBlockedMessage = 'Primero valida la coherencia de esta fase'
-    } else if (!submitResult) {
+    if (!hasSubmitted) {
       advanceBlockedMessage = 'Primero envia informacion para esta fase'
     }
   }
@@ -49,6 +71,21 @@ export default function PhaseContent({
         <div className="card">
           <h3 className="text-sm font-semibold text-slate-700">{workflow.phase_info.title}</h3>
           <p className="text-sm text-slate-500 mt-1">{workflow.phase_info.description}</p>
+          {workflow.phase_info.instruction && (
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-blue-900 uppercase mb-0.5">
+                    Que debes hacer en esta fase
+                  </p>
+                  <p className="text-sm text-blue-900 whitespace-pre-wrap">
+                    {workflow.phase_info.instruction}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -92,16 +129,21 @@ export default function PhaseContent({
       {/* Input Area */}
       <div className="space-y-4">
         <TextInput onSubmit={onSubmitText} disabled={isSubmitting} />
-        <FileUpload onFilesAccepted={onSubmitFiles} disabled={isSubmitting} />
+        <FileUpload
+          onFilesAccepted={onSubmitFiles}
+          disabled={isSubmitting}
+          purpose={workflow.phase_info?.instruction}
+        />
       </div>
 
-      {/* Submit success confirmation */}
-      {submitResult && (
+      {/* Submit confirmation - sourced from persisted workflow data so it
+          remains visible after a react-query refetch and page reload. */}
+      {hasSubmitted && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
             <p className="text-sm font-medium text-green-700">
-              {submitResult.message || 'Informacion guardada exitosamente'}
+              {submitResult?.message || 'Informacion guardada exitosamente'}
             </p>
           </div>
           {identifiedProblem && (
@@ -114,6 +156,9 @@ export default function PhaseContent({
           )}
         </div>
       )}
+
+      {/* AI response rendered as markdown from persisted data */}
+      {aiResponseText && <AIResponse content={aiResponseText} />}
 
       {/* Advance Button */}
       <div className="flex flex-col items-end gap-2 pt-4">

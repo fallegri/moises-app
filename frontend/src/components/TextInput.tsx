@@ -5,12 +5,14 @@ interface TextInputProps {
   onSubmit: (text: string) => void
   disabled?: boolean
   placeholder?: string
+  label?: string
 }
 
 export default function TextInput({
   onSubmit,
   disabled = false,
-  placeholder = 'Escribe aqui tu informacion, antecedentes, respuestas a las tareas...',
+  placeholder = 'Escribe aqui tu respuesta por escrito para esta fase...',
+  label = 'Tu respuesta (escribe aqui tu texto)',
 }: TextInputProps) {
   const [text, setText] = useState('')
 
@@ -30,7 +32,7 @@ export default function TextInput({
   return (
     <div className="card">
       <label className="block text-sm font-medium text-slate-700 mb-2">
-        Tu respuesta
+        {label}
       </label>
       <textarea
         value={text}

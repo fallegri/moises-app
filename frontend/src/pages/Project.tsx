@@ -159,8 +159,14 @@ export default function Project() {
             />
           )}
 
-          {/* Validation - only available after the user has submitted input */}
-          {submitInput.isSuccess && (
+          {/* Validation - advisory. Available once the current phase has been
+              submitted per persisted backend state (phase_result present or a
+              task completed), so it survives a page reload. Never required to
+              advance. */}
+          {workflow &&
+            (workflow.phase_result != null ||
+              workflow.current_tasks?.some((t) => t.completed) ||
+              submitInput.isSuccess) && (
             <div className="mt-6 space-y-4">
               <button
                 onClick={handleValidate}
