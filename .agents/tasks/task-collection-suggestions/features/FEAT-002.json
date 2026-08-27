@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Frontend: render the phase-1 'informacion que debes recopilar' list so that right after the AI analyzes the problematic situation, the user sees a clear, readable list of the data/instruments to collect for the next phase. Depends on FEAT-001 (backend must expose collection_suggestions in phase_result). Renders via the existing AIResponse markdown component.",
+  "status": "completed",
+  "steps": [
+    "In frontend/src/components/PhaseContent.tsx, read the new field from phaseResult: const collectionSuggestions = (phaseResult && typeof phaseResult.collection_suggestions === 'string') ? phaseResult.collection_suggestions : ''. phaseResult already resolves from workflow.phase_result ?? submitResult?.result so it survives reload and shows immediately after submit.",
+    "Add a dedicated rendered block (only when current_phase === 'problem_identification' and collectionSuggestions is non-empty and there is no AI issue) that shows a clear heading (e.g. 'Informacion que debes recopilar para la siguiente fase') and renders collectionSuggestions through the existing AIResponse component (markdown bullet list). Place it after the identified-problem confirmation block so the flow reads: problem identified -> here is what to collect next. Ensure it does NOT double-render: note the existing generic ai_response block is guarded by `aiResponseText && !identifiedProblem`; for problem_identification identifiedProblem is present so that generic block stays hidden - the new block is the one that surfaces the list.",
+    "Guard against the degraded case: when phaseResult.ai_unconfigured or phaseResult.ai_error is true, do NOT render the collection-suggestions block (the amber advisory already explains the situation). Reuse the existing hasAiIssue boolean.",
+    "Add frontend tests in frontend/src/__tests__/PhaseContent.test.tsx: (a) when workflow.phase_result contains collection_suggestions markdown (e.g. '- Encuesta de satisfaccion\\n- Registros de rotacion') for problem_identification, the list items render and the heading 'Informacion que debes recopilar para la siguiente fase' is shown; (b) when ai_error/ai_unconfigured is true, the collection-suggestions block is NOT rendered (only the advisory shows). Follow the existing render helper and assertion patterns in the file.",
+    "If needed for type-safety, no change to frontend/src/types/research.ts is required because phase_result is Record<string, any>; leave types unless the coder finds a compile error."
+  ],
+  "acceptance_criteria": [
+    "In the problem_identification phase, after a successful AI analysis, the UI renders a clearly labeled list of the information the user should collect for the next phase, using the AIResponse markdown component.",
+    "The list is sourced from workflow.phase_result.collection_suggestions and therefore persists across reloads (not only immediately after submit).",
+    "When the AI failed or was unconfigured, the collection-suggestions block is hidden and only the advisory message is shown.",
+    "Running `cd frontend && npm test` passes all tests including the new ones."
+  ],
+  "verification": [
+    "cd frontend && npm test",
+    "cd frontend && npm run build  (typecheck/build succeeds)"
+  ],
+  "blocked_reason": null,
+  "findings": "Frontend-only change in PhaseContent.tsx. Added `collectionSuggestions` derived from phaseResult.collection_suggestions (string, else ''), so it resolves from workflow.phase_result ?? submitResult?.result and survives reload. Added a dedicated block AFTER the identified-problem green confirmation card and before the amber advisory, guarded by `phase === 'problem_identification' && collectionSuggestions && !hasAiIssue`. It shows the exact heading 'Informacion que debes recopilar para la siguiente fase' and renders the markdown via <AIResponse content={collectionSuggestions} />. No double-render: the generic ai_response block stays guarded by !identifiedProblem, and the new block reuses the existing hasAiIssue boolean to hide on ai_unconfigured/ai_error. No type change needed (phase_result is Record<string, any>). V1 REVIEW: no component change was needed because the double-render was a BACKEND aliasing bug (identified_problem and collection_suggestions were the same blob); the fix landed server-side in FEAT-001 via _split_problem_and_suggestions, so identified_problem now feeds the green box and collection_suggestions feeds this block with disjoint content. Added a regression test 'does not duplicate the problem text inside the collection-suggestions block' asserting the problem string appears exactly once (screen.getAllByText(problem).toHaveLength(1)) when the split data is supplied. Verification: `npm test` -> 42 passed; `npm run build` (rolldown-vite) succeeds. Did not commit/push per orchestrator instruction."
+}

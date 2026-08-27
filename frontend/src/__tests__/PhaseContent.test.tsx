@@ -289,6 +289,67 @@ describe('PhaseContent', () => {
     ).toBeInTheDocument()
   })
 
+  // (a) Phase-1 collection-suggestions list renders after AI analysis.
+  it('renders the collection-suggestions list and heading for problem_identification', () => {
+    const workflowWithSuggestions: WorkflowStatus = {
+      ...baseWorkflow,
+      phase_result: {
+        identified_problem: 'La rotacion de personal aumento.',
+        collection_suggestions: '- Encuesta de satisfaccion\n- Registros de rotacion',
+      },
+      can_advance: true,
+    }
+    renderPhase({ workflow: workflowWithSuggestions, submitResult: null })
+    expect(
+      screen.getByText('Informacion que debes recopilar para la siguiente fase')
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Encuesta de satisfaccion/)).toBeInTheDocument()
+    expect(screen.getByText(/Registros de rotacion/)).toBeInTheDocument()
+  })
+
+  // (a.1) The problem analysis is NOT duplicated inside the suggestions block.
+  // With the server-side split, identified_problem holds only the problem and
+  // collection_suggestions holds only the bullets, so the problem statement
+  // must appear exactly once on screen (in its green box, not in the list).
+  it('does not duplicate the problem text inside the collection-suggestions block', () => {
+    const problem = 'La rotacion de personal aumento un 30% este ano.'
+    const workflowWithSuggestions: WorkflowStatus = {
+      ...baseWorkflow,
+      phase_result: {
+        identified_problem: problem,
+        collection_suggestions: '- Encuesta de satisfaccion\n- Registros de rotacion',
+      },
+      can_advance: true,
+    }
+    renderPhase({ workflow: workflowWithSuggestions, submitResult: null })
+    // The problem text appears exactly once (in the green identified-problem box),
+    // never repeated inside the recollection list.
+    expect(screen.getAllByText(problem)).toHaveLength(1)
+  })
+
+  // (b) When the AI failed, the collection-suggestions block is hidden and only
+  // the advisory shows.
+  it('hides the collection-suggestions block when the AI call failed (ai_error)', () => {
+    const advisory =
+      'La IA no pudo procesar la solicitud: model not found. Tu informacion se guardo.'
+    const errorWorkflow: WorkflowStatus = {
+      ...baseWorkflow,
+      phase_result: {
+        identified_problem: '',
+        collection_suggestions: '',
+        ai_error: true,
+        advisory_message: advisory,
+        user_input: 'mi situacion',
+      },
+      can_advance: true,
+    }
+    renderPhase({ workflow: errorWorkflow, submitResult: null })
+    expect(
+      screen.queryByText('Informacion que debes recopilar para la siguiente fase')
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(advisory)).toBeInTheDocument()
+  })
+
   // Task checkbox reflects backend completion after refetch.
   it('renders a checked task checkbox when the backend reports the task completed', () => {
     const workflowWithCompletedTask: WorkflowStatus = {

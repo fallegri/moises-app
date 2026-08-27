@@ -8,6 +8,16 @@ Instrucciones:
 2. Identifica el problema principal que se evidencia en la situacion.
 3. Formula el problema de manera clara y concisa.
 4. Explica brevemente por que es un problema y que evidencia lo sustenta.
+5. Al final, agrega una seccion titulada exactamente "Informacion que debes recopilar"
+   con una lista de vinetas en markdown (una vineta por linea con el formato "- ...").
+   En esa lista indica de forma explicita y concreta que datos o informacion debe
+   recopilar el usuario para la siguiente fase: que medir, a quien o a que aplicarlo y
+   con que instrumento (encuesta, entrevista, observacion, revision documental, etc.).
+   Cada vineta debe ser accionable para que el usuario sepa exactamente que reunir.
+
+Formato de respuesta esperado (en español):
+- Primero el problema identificado y su justificacion.
+- Luego la seccion "Informacion que debes recopilar" con la lista de vinetas.
 
 Contexto metodologico de referencia:
 {knowledge_context}
