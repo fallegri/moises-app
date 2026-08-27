@@ -115,6 +115,14 @@ export default function PhaseContent({
       ? phaseResult.identified_problem
       : ''
 
+  // Phase-1 recollection guidance: the markdown bullet list of the specific
+  // information/data the user should gather to bring to the next phase. Sourced
+  // from the persisted phase_result so it survives reload.
+  const collectionSuggestions =
+    phaseResult && typeof phaseResult.collection_suggestions === 'string'
+      ? phaseResult.collection_suggestions
+      : ''
+
   // Whether this phase has been submitted, derived from persisted backend state
   // (phase_result present or any task completed) so it survives reload. Falls
   // back to the transient submitResult for the immediate post-submit render.
@@ -268,6 +276,20 @@ export default function PhaseContent({
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{identifiedProblem}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Phase-1 recollection guidance: right after the AI analyzes the
+          problematic situation, show a clear, readable list of the information
+          the user should collect for the next phase. Rendered via AIResponse
+          (markdown bullet list). Hidden when the AI failed/was unconfigured
+          (the amber advisory already explains that case). */}
+      {phase === 'problem_identification' && collectionSuggestions && !hasAiIssue && (
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold text-slate-500 uppercase">
+            Informacion que debes recopilar para la siguiente fase
+          </h4>
+          <AIResponse content={collectionSuggestions} />
         </div>
       )}
 

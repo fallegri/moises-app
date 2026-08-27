@@ -3,7 +3,24 @@
 import pytest
 from unittest.mock import MagicMock, patch, PropertyMock
 
+from app.core.prompts import ANALYZE_PROBLEM_PROMPT
 from app.services.ai_service import AIService, AIServiceConfigError
+
+
+class TestAnalyzeProblemPrompt:
+    """Locks in the prompt contract for the phase-1 recollection guidance."""
+
+    def test_prompt_requests_collection_section(self):
+        """ANALYZE_PROBLEM_PROMPT must ask for the recollection section.
+
+        The model has to return a section titled exactly "Informacion que debes
+        recopilar" so the frontend can render an actionable list of what data the
+        user should gather for the next phase (Option A design).
+        """
+        assert "Informacion que debes recopilar" in ANALYZE_PROBLEM_PROMPT
+        # Preserve the knowledge-context injection and Spanish guidance.
+        assert "{knowledge_context}" in ANALYZE_PROBLEM_PROMPT
+        assert "Responde en español" in ANALYZE_PROBLEM_PROMPT
 
 
 @pytest.fixture

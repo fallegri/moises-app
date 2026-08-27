@@ -12,7 +12,17 @@ from app.services.workflow_engine import WorkflowEngine
 def mock_ai_service():
     """Create a mocked AI service."""
     service = MagicMock()
-    service.analyze_problem.return_value = "Problema identificado: Falta de acceso a educacion en zonas rurales"
+    # Realistic phase-1 response: the identified problem + justification,
+    # followed by the "Informacion que debes recopilar" section with bullets.
+    service.analyze_problem.return_value = (
+        "Problema identificado: Falta de acceso a educacion en zonas rurales.\n"
+        "Justificacion: la evidencia muestra escasez de instituciones y docentes.\n"
+        "\n"
+        "Informacion que debes recopilar\n"
+        "- Numero de instituciones educativas por zona (revision documental).\n"
+        "- Percepcion de las familias sobre el acceso (encuesta a hogares).\n"
+        "- Disponibilidad de docentes (entrevista a autoridades locales)."
+    )
     service.suggest_instruments.return_value = (
         "1. Encuesta a habitantes\n2. Entrevista a docentes\n3. Observacion directa"
     )
@@ -145,6 +155,78 @@ class TestWorkflowEngine:
         assert project.problem_description is not None
         assert project.problem_description.raw_text == "En mi empresa hay alta rotacion de personal"
 
+    def test_process_input_splits_problem_and_collection_suggestions(
+        self, engine, project, mock_ai_service
+    ):
+        """Phase 1 splits the AI blob into problem vs. recollection guidance.
+
+        Design (Option A): the AI returns the identified problem AND a
+        "Informacion que debes recopilar" section in one markdown string. The
+        engine splits it server-side so `identified_problem` holds ONLY the
+        problem/justification and `collection_suggestions` holds ONLY the
+        recollection bullets. Neither block should repeat the other's content,
+        which is what caused the analysis to render twice on screen.
+        """
+        state = engine.initialize_workflow(project.id)
+        result = engine.process_input(
+            state, project, "En mi empresa hay alta rotacion de personal"
+        )
+
+        # identified_problem = the problem/justification, WITHOUT the bullets.
+        assert "Problema identificado" in result["identified_problem"]
+        assert "Justificacion" in result["identified_problem"]
+        assert "revision documental" not in result["identified_problem"]
+        assert "encuesta a hogares" not in result["identified_problem"]
+        # The marker heading is not duplicated inside the problem text.
+        assert "Informacion que debes recopilar" not in result["identified_problem"]
+
+        # collection_suggestions = ONLY the recollection bullets, without the
+        # problem statement repeated.
+        assert result["collection_suggestions"]
+        assert "revision documental" in result["collection_suggestions"]
+        assert "encuesta a hogares" in result["collection_suggestions"]
+        assert "Problema identificado" not in result["collection_suggestions"]
+
+        # The persisted problem stored on the project is the split problem-only
+        # text (clean statement for downstream _build_project_context).
+        assert (
+            project.problem_description.identified_problem
+            == result["identified_problem"]
+        )
+
+        # Survives in phase_data so GET /status can return it after reload.
+        assert (
+            state.phase_data[WorkflowPhase.PROBLEM_IDENTIFICATION.value][
+                "collection_suggestions"
+            ]
+            == result["collection_suggestions"]
+        )
+
+    def test_process_input_missing_marker_fallback(
+        self, engine, project, mock_ai_service
+    ):
+        """When the AI omits the recollection marker, degrade gracefully.
+
+        If the model renames or drops the "Informacion que debes recopilar"
+        section, `collection_suggestions` must be '' (so the frontend hides the
+        dedicated block instead of mislabeling text) and `identified_problem`
+        must hold the full response rather than crashing.
+        """
+        mock_ai_service.analyze_problem.return_value = (
+            "Problema identificado: Falta de acceso a educacion.\n"
+            "Justificacion: no hay suficientes instituciones."
+        )
+        state = engine.initialize_workflow(project.id)
+        result = engine.process_input(
+            state, project, "En mi empresa hay alta rotacion de personal"
+        )
+
+        assert result["collection_suggestions"] == ""
+        assert result["identified_problem"] == (
+            "Problema identificado: Falta de acceso a educacion.\n"
+            "Justificacion: no hay suficientes instituciones."
+        )
+
     def test_process_input_marks_task_completed_and_stores_response(self, engine, project):
         """After submitting, the phase task is completed and the AI result is stored.
 
@@ -249,6 +331,8 @@ class TestWorkflowEngine:
         # No exception; input preserved and result flagged as unconfigured.
         assert result["ai_unconfigured"] is True
         assert result["ai_response"] == ""
+        # Phase-1 recollection guidance cannot be produced -> empty string.
+        assert result["collection_suggestions"] == ""
         assert result["user_input"] == "En mi empresa hay alta rotacion de personal"
         assert result["advisory_message"]
         # Task completed so the flow can still advance (bug #5 keeps working).
@@ -291,6 +375,8 @@ class TestWorkflowEngine:
         assert result["ai_error"] is True
         assert result.get("ai_unconfigured") is not True
         assert result["ai_response"] == ""
+        # Phase-1 recollection guidance cannot be produced -> empty string.
+        assert result["collection_suggestions"] == ""
         assert result["advisory_message"]
         # The advisory explains the call failed (not the missing-config message).
         assert "no pudo procesar" in result["advisory_message"]

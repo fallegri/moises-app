@@ -1,0 +1,14 @@
+{
+  "task_id": "task-collection-suggestions",
+  "task_description": "After the AI analyzes the problematic situation in phase 1 (PROBLEM_IDENTIFICATION), present a clear list of the specific information/data the user should collect for the next phase, so they know exactly what to gather. Backend enhances the analyze_problem prompt and exposes a collection_suggestions field; frontend renders it as a readable markdown list via the existing AIResponse component. Design = Option A (guidance shown right after phase-1 analysis, before advancing, non-blocking).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Backend: 94 pytest tests pass (baseline 92 + 2 new). Frontend: 41 vitest tests pass (baseline 39 + 2 new) and `npm run build` (tsc + vite) succeeds. New backend tests assert collection_suggestions equals the AI output on success and is '' on degraded (unconfigured/error) paths; new frontend tests assert the list+heading render for problem_identification and are hidden on ai_error. Tests exercise the new code paths and would fail if reverted. Docker build skipped (no live services needed; verification is fully via unit tests)."
+  }
+}

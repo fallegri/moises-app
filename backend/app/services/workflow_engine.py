@@ -1,5 +1,6 @@
 """Workflow engine managing the step-by-step research process."""
 
+import unicodedata
 from typing import Optional, Any
 
 from app.models.workflow import WorkflowPhase, WorkflowState, PhaseTask, PHASE_ORDER
@@ -41,6 +42,64 @@ def _ai_error_message(error: Exception) -> str:
         "La IA no pudo procesar la solicitud: "
         f"{reason}. Tu informacion se guardo. Puedes reintentar o continuar."
     )
+
+
+# The phase-1 model is instructed to append a section titled exactly
+# "Informacion que debes recopilar" with the recollection bullet list. We split
+# on this marker so the identified problem and the recollection guidance render
+# as two distinct blocks in the UI instead of one duplicated blob.
+_COLLECTION_MARKER = "informacion que debes recopilar"
+
+
+def _strip_accents(text: str) -> str:
+    """Return `text` lowercased and with accents removed for lenient matching."""
+    normalized = unicodedata.normalize("NFKD", text)
+    without_accents = "".join(c for c in normalized if not unicodedata.combining(c))
+    return without_accents.lower()
+
+
+def _split_problem_and_suggestions(ai_response: str) -> tuple[str, str]:
+    """Split the phase-1 AI response into (problem_text, suggestions_text).
+
+    The model returns a single markdown blob: the identified problem and its
+    justification, followed by a section titled "Informacion que debes
+    recopilar" with the recollection bullet list. We split on that marker so the
+    frontend can render the problem and the recollection list as separate blocks
+    instead of duplicating the whole response.
+
+    Matching is lenient: case-insensitive, accent-insensitive, and tolerant of
+    markdown heading/bold syntax around the marker (e.g. "## Informacion...",
+    "**Informacion...**"). `suggestions_text` keeps only the section body (the
+    content after the marker heading line), because the frontend already renders
+    its own heading, avoiding visual redundancy.
+
+    Fallback: when the marker is absent, `problem_text` is the full response and
+    `suggestions_text` is '' so the frontend hides the dedicated block rather
+    than showing a mislabeled duplicate. An empty/degraded response yields
+    ('', '').
+    """
+    if not ai_response:
+        return "", ""
+
+    lines = ai_response.splitlines()
+    marker_index: Optional[int] = None
+    for i, line in enumerate(lines):
+        # Strip markdown heading/bold/list decoration and whitespace so a line
+        # like "## **Informacion que debes recopilar:**" still matches.
+        stripped = _strip_accents(line).strip()
+        stripped = stripped.strip("#*_-: \t")
+        if stripped.startswith(_COLLECTION_MARKER):
+            marker_index = i
+            break
+
+    if marker_index is None:
+        # Marker missing (model renamed/omitted the section): keep the whole
+        # response as the problem and hide the recollection block.
+        return ai_response.strip(), ""
+
+    problem_text = "\n".join(lines[:marker_index]).strip()
+    suggestions_text = "\n".join(lines[marker_index + 1 :]).strip()
+    return problem_text, suggestions_text
 
 
 class WorkflowEngine:
@@ -408,13 +467,32 @@ class WorkflowEngine:
             ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
                 self.ai_service.analyze_problem, user_input, knowledge_context
             )
+            # The AI returns a single markdown blob: the identified problem and
+            # its justification, then a "Informacion que debes recopilar"
+            # section with the recollection bullet list. Split it so each block
+            # in the UI shows only its own content (no duplicated analysis).
+            # When the marker is absent, `problem_text` is the whole response
+            # and `suggestions_text` is '' (fallback), so the recollection block
+            # is hidden rather than mislabeling the problem text.
+            problem_text, suggestions_text = _split_problem_and_suggestions(ai_response)
             # Persist the raw input even when the AI could not identify a
-            # problem, so the written text survives navigation and reload.
+            # problem, so the written text survives navigation and reload. Store
+            # the problem-only text (not the recollection section) so downstream
+            # phases receive a clean problem statement via _build_project_context.
             project.problem_description = ProblemDescription(
                 raw_text=user_input,
-                identified_problem=ai_response or None,
+                identified_problem=problem_text or None,
             )
-            result = {"identified_problem": ai_response, "saved_text": user_input}
+            # `collection_suggestions` carries only the actionable Spanish list
+            # of information the user should gather for the next phase, so the
+            # frontend renders it under its own heading without repeating the
+            # problem analysis. On a degraded AI (unconfigured/error)
+            # `ai_response` is '' and the block below normalizes it to ''.
+            result = {
+                "identified_problem": problem_text,
+                "collection_suggestions": suggestions_text,
+                "saved_text": user_input,
+            }
 
         elif phase == WorkflowPhase.INSTRUMENT_SUGGESTION:
             problem = (
@@ -508,6 +586,13 @@ class WorkflowEngine:
             result["advisory_message"] = _ai_error_message(ai_error)
         else:
             result["ai_response"] = ai_response
+
+        # When the AI degraded (unconfigured/error) the phase-1 recollection
+        # guidance cannot be produced, so ensure `collection_suggestions` is an
+        # empty string rather than the empty AI response, mirroring how
+        # `ai_response` is normalized above. Only present on problem_identification.
+        if "collection_suggestions" in result and (ai_unconfigured or ai_error is not None):
+            result["collection_suggestions"] = ""
 
         state.phase_data[phase.value] = result
 

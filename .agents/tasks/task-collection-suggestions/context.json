@@ -1,0 +1,28 @@
+{
+  "project_type": "Full-stack research-assistant web app: FastAPI (Python) backend + React/Vite (TypeScript) frontend. 12-phase scientific research workflow guided by an OpenAI-compatible AI (NVIDIA deepseek-ai/deepseek-v4-pro-0813).",
+  "language": "Python 3.11 (backend), TypeScript/React (frontend)",
+  "build_system": "Backend: pip install -r requirements.txt. Frontend: npm (Vite). No Makefile.",
+  "test_framework": "Backend: pytest (backend/tests/*.py, MagicMock-based AI mocking). Frontend: vitest + @testing-library/react (frontend/src/__tests__/*.test.tsx).",
+  "build_command": "Backend: none (interpreted). Frontend: cd frontend && npm run build",
+  "test_command": "Backend: cd backend && python3 -m pytest tests/ -v (baseline 92 pass). Frontend: cd frontend && npm test (baseline 39 pass).",
+  "verification_instructions": "1) cd backend && python3 -m pytest tests/ -q  (expect all pass incl. new). 2) cd frontend && npm test  (expect all pass incl. new). Use python3 and pytest is at /usr/local/bin/pytest. `python` is NOT available, use `python3`.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "Backend deps already installed (pytest at /usr/local/bin/pytest, python3 at /usr/bin/python3). Frontend: cd frontend && npm install (if node_modules missing) then npm test.",
+  "environment_constraints": "AI provider calls are always mocked in tests (never hit the network). No live AI needed for verification. Work happens on branch feat/collection-suggestions. Do NOT push or open PRs.",
+  "contribution_requirements": "Keep all existing tests green (92 backend + 39 frontend). Add tests for new behavior. Preserve the graceful-degradation pattern (_safe_ai_call in workflow_engine): AI failures must never raise a 500. Spanish user-facing copy (accents optional, existing code uses unaccented Spanish).",
+  "key_patterns": "DESIGN DECISION = OPTION A: Enhance phase 1 (PROBLEM_IDENTIFICATION) so the AI response includes BOTH the identified problem AND an explicit bulleted list of the specific information/data the user must collect for the next phase. This shows the guidance immediately after submitting phase 1, before advancing (matches the user's 'despues de que analice mi situacion problematica, me de una lista'). The list is rendered by the existing AIResponse markdown component. AI call goes through ai_service.analyze_problem() -> ANALYZE_PROBLEM_PROMPT in backend/app/core/prompts.py. In workflow_engine.process_input(), the PROBLEM_IDENTIFICATION branch sets result['identified_problem'] and result['ai_response']. IMPORTANT: currently for problem_identification, result['ai_response'] is set to the full analyze_problem() output, but PhaseContent.tsx renders identified_problem in its own block and SKIPS the generic ai_response block when identified_problem is present (see `aiResponseText && !identifiedProblem`). So to show a separate collection-suggestions list we must add a NEW result field (e.g. collection_suggestions) and render it in PhaseContent.tsx as a markdown list via AIResponse, in ADDITION to the identified_problem block.",
+  "relevant_files": [
+    "backend/app/core/prompts.py (ANALYZE_PROBLEM_PROMPT - update to also return an actionable 'informacion que debes recopilar' bullet list in Spanish)",
+    "backend/app/services/ai_service.py (analyze_problem() calls ANALYZE_PROBLEM_PROMPT)",
+    "backend/app/services/workflow_engine.py (process_input() PROBLEM_IDENTIFICATION branch builds result dict; add collection_suggestions field)",
+    "backend/app/models/research_project.py (ProblemDescription model - check whether to persist suggestions)",
+    "backend/app/routers/workflow.py (submit_input returns result; get_workflow_status returns phase_result)",
+    "backend/tests/test_workflow.py (workflow engine tests, MagicMock AI, pattern for new backend tests)",
+    "backend/tests/test_ai_service.py (analyze_problem test)",
+    "frontend/src/components/PhaseContent.tsx (renders phase_result; identified_problem block + generic ai_response block; add rendering for collection_suggestions list)",
+    "frontend/src/components/AIResponse.tsx (markdown renderer, reuse for the list)",
+    "frontend/src/types/research.ts (WorkflowStatus/SubmitInputResponse types - phase_result is Record<string,any>, no type change strictly needed)",
+    "frontend/src/__tests__/PhaseContent.test.tsx (frontend test patterns for new rendering test)"
+  ],
+  "directory_structure": "backend/app/{core,models,routers,services} + backend/tests. frontend/src/{components,pages,hooks,api,types} + frontend/src/__tests__. The workflow endpoints live in backend/app/routers/workflow.py; the engine in backend/app/services/workflow_engine.py; per-phase copy/prompts in backend/app/core/prompts.py and get_phase_description()."
+}
