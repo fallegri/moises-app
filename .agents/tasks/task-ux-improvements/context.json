@@ -1,0 +1,28 @@
+{
+  "project_type": "Full-stack app: React SPA frontend + Python FastAPI backend",
+  "language": "TypeScript (frontend), Python (backend)",
+  "build_system": "Vite (frontend), uvicorn (backend), no brazil",
+  "test_framework": "vitest with @testing-library/react and jsdom (frontend), pytest (backend)",
+  "build_command": "cd frontend && npm run build",
+  "test_command": "cd frontend && npm test (10 tests), cd backend && pytest tests/ -v (75 tests)",
+  "verification_instructions": "1. Run frontend tests: cd frontend && npm test. 2. Run frontend build: cd frontend && npm run build. 3. Run backend tests: cd backend && pytest tests/ -v",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "cd frontend && npm install; cd backend && pip install -r requirements.txt",
+  "environment_constraints": "OPEN_INTERNET - full access. Node 22, Python 3.11 pre-installed.",
+  "contribution_requirements": "No CONTRIBUTING.md found. Follow existing patterns.",
+  "key_patterns": "Components in frontend/src/components/. API functions in frontend/src/api/client.ts. React Query hooks in frontend/src/hooks/useWorkflow.ts. Types in frontend/src/types/research.ts. Backend routers in backend/app/routers/. Tailwind CSS classes used directly. lucide-react for icons. Spanish language UI.",
+  "relevant_files": [
+    "frontend/src/components/KnowledgeBase.tsx",
+    "frontend/src/components/TextInput.tsx",
+    "frontend/src/components/PhaseContent.tsx",
+    "frontend/src/pages/Project.tsx",
+    "frontend/src/api/client.ts",
+    "frontend/src/hooks/useWorkflow.ts",
+    "frontend/src/types/research.ts",
+    "frontend/src/components/FileUpload.tsx",
+    "backend/app/routers/knowledge.py",
+    "backend/app/routers/workflow.py",
+    "backend/app/models/workflow.py"
+  ],
+  "directory_structure": "Root: backend/, frontend/, docs/, docker-compose.yml. Frontend: src/components/, src/pages/, src/hooks/, src/api/, src/types/, src/__tests__/. Backend: app/routers/, app/services/, app/models/."
+}

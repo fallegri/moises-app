@@ -1,0 +1,14 @@
+{
+  "task_id": "task-ux-improvements",
+  "task_description": "Improve UX of the frontend: (1) KnowledgeBase multi-file upload with uploaded files list, (2) Show success confirmation and AI response after submitting text, (3) Hide Validate Coherence button until input is submitted, (4) Show contextual message when Advance button is disabled.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Frontend build (tsc -b && vite build) succeeds with no TS errors. All 15 frontend tests pass (10 existing + 5 new PhaseContent tests). The new PhaseContent.test.tsx tests exercise real component behavior: contextual advance-blocked messages, success confirmation card, and AI-identified problem display; they would fail if the feature code were reverted. Docker build skipped (frontend-only UI changes, verified via vite build)."
+  }
+}

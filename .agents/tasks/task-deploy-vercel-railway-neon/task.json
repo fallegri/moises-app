@@ -1,0 +1,14 @@
+{
+  "task_id": "task-deploy-vercel-railway-neon",
+  "task_description": "Migrate the moises-app project for deployment on Vercel (frontend) + Railway (backend) + NeonTech (PostgreSQL). Replace JSON file persistence with PostgreSQL via SQLAlchemy, maintain backward compatibility with JSON fallback, prepare Railway config (Procfile, runtime.txt, CORS), prepare Vercel config (vercel.json for SPA), and create deployment documentation.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All 75 existing tests pass. pip install succeeds. Frontend build (tsc + vite) succeeds. Semantic review v1 found 5 issues (all fixed). Semantic review v2 approved the implementation with 3 non-blocking observations."
+  }
+}

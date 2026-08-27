@@ -1,0 +1,32 @@
+{
+  "project_type": "Python FastAPI backend + React 19 TypeScript frontend (Vite + Tailwind)",
+  "language": "Python 3.11 (backend), TypeScript (frontend)",
+  "build_system": "pip + requirements.txt (backend), npm + vite (frontend)",
+  "test_framework": "pytest with FastAPI TestClient (backend), vitest with @testing-library/react (frontend)",
+  "build_command": "cd backend && pip install -r requirements.txt (backend); cd frontend && npm run build (frontend)",
+  "test_command": "cd backend && python -m pytest tests/ -v (backend); cd frontend && npm run test (frontend)",
+  "verification_instructions": "1. Run backend tests: cd backend && python -m pytest tests/ -v. 2. Run frontend build: cd frontend && npm run build. 3. Run frontend tests: cd frontend && npm run test.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "1. cd backend && pip install -r requirements.txt. 2. cd frontend && npm install.",
+  "environment_constraints": "OPEN_INTERNET - full network access. Python 3.11 and Node 22 available.",
+  "contribution_requirements": "Tests must pass. In-memory dict pattern backed by persistence service. Routers use _persistence instance and _projects/_workflow_states dicts.",
+  "key_patterns": "Backend: PersistenceService class in services/persistence.py provides file-based JSON CRUD. Routers import PersistenceService, create instance, load data on module import into dicts, persist on mutation. Config uses pydantic-settings BaseSettings. AI config stored in separate JSON file via ai_config.py router (load_ai_config/save_ai_config functions). Frontend: axios client in src/api/client.ts uses VITE_API_URL env var (defaults to empty string for relative URLs). CORS origins in config.py settings.",
+  "relevant_files": [
+    "backend/app/services/persistence.py",
+    "backend/app/core/config.py",
+    "backend/app/main.py",
+    "backend/app/models/research_project.py",
+    "backend/app/models/workflow.py",
+    "backend/app/routers/projects.py",
+    "backend/app/routers/workflow.py",
+    "backend/app/routers/ai_config.py",
+    "backend/requirements.txt",
+    "backend/tests/test_integration.py",
+    "backend/tests/test_workflow.py",
+    "frontend/src/api/client.ts",
+    "frontend/vite.config.ts",
+    "frontend/package.json",
+    "docker-compose.yml"
+  ],
+  "directory_structure": "Root: backend/, frontend/, docs/, skills/, docker-compose.yml. Backend: app/core/config.py, app/main.py, app/models/, app/routers/, app/services/, storage/, tests/. Frontend: src/api/client.ts, src/components/, src/pages/, src/hooks/, src/types/."
+}
