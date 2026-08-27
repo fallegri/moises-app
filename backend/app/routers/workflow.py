@@ -80,10 +80,15 @@ async def get_workflow_status(project_id: str):
                 "description": t.description,
                 "instruction": t.instruction,
                 "completed": t.completed,
+                "response_data": t.response_data,
             }
             for t in state.current_tasks
         ],
+        # Persisted AI result for the current phase so the frontend can render
+        # the last response after a re-render/reload without re-submitting.
+        "phase_result": state.phase_data.get(state.current_phase.value),
         "coherence_validated": state.coherence_validated,
+        "last_validation_message": state.last_validation_message,
         "can_advance": state.can_advance(),
     }
 
@@ -129,21 +134,34 @@ async def advance_workflow(project_id: str):
                 ),
             )
 
+    # Coherence is now ADVISORY: it never blocks advancement. If it has not
+    # been validated yet, attempt it and surface any negative/ambiguous result
+    # as a non-fatal warning in the response instead of raising a 400.
+    coherence_warning = None
     if not state.coherence_validated:
-        # Attempt validation
-        validation = _engine.validate_phase_coherence(state, project)
-        if not validation["is_coherent"]:
-            _persist_workflow(state)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot advance: coherence validation failed. {validation['message']}",
+        try:
+            validation = _engine.validate_phase_coherence(state, project)
+            if not validation["is_coherent"]:
+                coherence_warning = (
+                    f"Advertencia de coherencia: {validation['message']}"
+                )
+        except Exception:
+            # An unconfigured/failing AI must not block advancement.
+            coherence_warning = (
+                "No se pudo validar la coherencia automaticamente; "
+                "puede continuar de todos modos."
             )
 
     new_phase = _engine.advance_phase(state)
     if not new_phase:
+        # Advancement is gated on the current phase having been submitted and
+        # not being the last phase (see WorkflowState.can_advance).
         raise HTTPException(
             status_code=400,
-            detail="Cannot advance: already at the last phase or validation pending",
+            detail=(
+                "Cannot advance: submit the current phase first or you are "
+                "already at the last phase."
+            ),
         )
 
     _persist_workflow(state)
@@ -152,6 +170,7 @@ async def advance_workflow(project_id: str):
         "new_phase": new_phase.value,
         "phase_info": phase_info,
         "message": f"Advanced to: {phase_info['title']}",
+        "coherence_warning": coherence_warning,
     }
 
 

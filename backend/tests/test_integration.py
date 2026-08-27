@@ -170,8 +170,13 @@ class TestFullWorkflow:
         assert response.status_code == 200
         assert response.json()["new_phase"] == "research_question"
 
-    def test_workflow_cannot_advance_without_validation(self, client, mock_ai):
-        """Test that workflow cannot advance without coherence validation."""
+    def test_workflow_advances_with_coherence_warning(self, client, mock_ai):
+        """Coherence is now advisory: a negative result warns but does not block.
+
+        Previously an incoherent result raised a 400 and deadlocked the flow.
+        Now advancement is gated on submission; an incoherent coherence check is
+        surfaced as a non-fatal 'coherence_warning' in the response.
+        """
         # Create project and submit first input
         response = client.post("/api/projects/", json={"title": "Validation Test"})
         project_id = response.json()["id"]
@@ -180,16 +185,48 @@ class TestFullWorkflow:
         # Mock incoherent response for this test
         mock_ai.validate_coherence.return_value = "INCOHERENTE: Los datos no son consistentes."
 
-        # Submit input
+        # Submit input (this also auto-runs coherence, storing the negative result)
         client.post(
             f"/api/workflow/{project_id}/submit-input",
             json={"text": "Datos inconsistentes"},
         )
 
-        # Try to advance - should fail because coherence not validated
+        # Advance now succeeds despite the incoherent result.
+        response = client.post(f"/api/workflow/{project_id}/advance")
+        assert response.status_code == 200
+        assert response.json()["new_phase"] == "instrument_suggestion"
+
+    def test_cannot_advance_without_submission(self, client, mock_ai):
+        """Cannot advance a phase that has not been submitted yet."""
+        response = client.post("/api/projects/", json={"title": "No Submission Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        # No submit-input call -> nothing submitted for the current phase.
         response = client.post(f"/api/workflow/{project_id}/advance")
         assert response.status_code == 400
-        assert "coherence validation failed" in response.json()["detail"]
+
+    def test_status_returns_persisted_result_and_completed_task(self, client, mock_ai):
+        """GET /status exposes phase_result, per-task response_data/completed, instruction."""
+        response = client.post("/api/projects/", json={"title": "Status Test"})
+        project_id = response.json()["id"]
+        client.get(f"/api/workflow/{project_id}/status")
+
+        client.post(
+            f"/api/workflow/{project_id}/submit-input",
+            json={"text": "En mi empresa hay alta rotacion de personal."},
+        )
+
+        status = client.get(f"/api/workflow/{project_id}/status").json()
+        # Task is completed and carries the AI response.
+        assert status["current_tasks"][0]["completed"] is True
+        assert status["current_tasks"][0]["response_data"] is not None
+        # Top-level persisted result for the current phase.
+        assert status["phase_result"] is not None
+        assert "identified_problem" in status["phase_result"]
+        # phase_info forwards the instruction text.
+        assert "instruction" in status["phase_info"]
+        assert status["phase_info"]["instruction"]
 
     def test_select_problem_formulation(self, client, mock_ai):
         """Test selecting a problem formulation in the refinement phase."""
