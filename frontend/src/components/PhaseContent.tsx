@@ -123,10 +123,15 @@ export default function PhaseContent({
     (workflow.current_tasks?.some((t) => t.completed) ?? false) ||
     Boolean(submitResult)
 
-  // Advisory shown when the AI was unconfigured at submit time: the input was
-  // saved but no analysis could be produced.
+  // Advisory shown when the AI was unconfigured OR the AI call failed at submit
+  // time: the input was saved but no analysis could be produced. Either flag
+  // (ai_unconfigured or ai_error) surfaces the backend advisory message so the
+  // user knows their text is safe and can retry or continue.
+  const hasAiIssue = Boolean(
+    phaseResult && (phaseResult.ai_unconfigured || phaseResult.ai_error)
+  )
   const advisoryMessage =
-    phaseResult && phaseResult.ai_unconfigured && typeof phaseResult.advisory_message === 'string'
+    hasAiIssue && typeof phaseResult?.advisory_message === 'string'
       ? phaseResult.advisory_message
       : ''
 
@@ -231,9 +236,23 @@ export default function PhaseContent({
         />
       </div>
 
+      {/* Processing status - while the submission is in flight, show a clear
+          spinner so the user knows the system is working and not frozen. */}
+      {isSubmitting && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-5 h-5 text-blue-600 flex-shrink-0 animate-spin" />
+            <p className="text-sm font-medium text-blue-700">
+              La IA esta analizando tu informacion...
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Submit confirmation - sourced from persisted workflow data so it
-          remains visible after a react-query refetch and page reload. */}
-      {hasSubmitted && (
+          remains visible after a react-query refetch and page reload. Hidden
+          while submitting so the processing status is not shown twice. */}
+      {hasSubmitted && !isSubmitting && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 space-y-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />

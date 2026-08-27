@@ -239,6 +239,35 @@ describe('PhaseContent', () => {
     expect(screen.getByText(advisory)).toBeInTheDocument()
   })
 
+  // AI call failure (configured AI, but the provider call failed) surfaces the
+  // advisory and still shows the saved confirmation because input was persisted.
+  it('shows an advisory message when the AI call failed (ai_error)', () => {
+    const advisory =
+      'La IA no pudo procesar la solicitud: model not found. Tu informacion se guardo. Puedes reintentar o continuar.'
+    const errorWorkflow: WorkflowStatus = {
+      ...baseWorkflow,
+      phase_result: {
+        identified_problem: '',
+        ai_response: '',
+        ai_error: true,
+        advisory_message: advisory,
+        user_input: 'mi situacion',
+      },
+      can_advance: true,
+    }
+    renderPhase({ workflow: errorWorkflow, submitResult: null })
+    expect(screen.getByText(advisory)).toBeInTheDocument()
+    // Input was saved, so the green confirmation is still shown.
+    expect(screen.getByText('Informacion guardada exitosamente')).toBeInTheDocument()
+  })
+
+  // Processing status: while submitting, a clear "AI is analyzing" banner shows
+  // so the user knows the system is working and not frozen.
+  it('shows a processing status while submitting', () => {
+    renderPhase({ submitResult: null, isSubmitting: true })
+    expect(screen.getByText('La IA esta analizando tu informacion...')).toBeInTheDocument()
+  })
+
   // Advance error from the backend (e.g. 400) is surfaced near the button.
   it('surfaces the advanceError message when advancing fails', () => {
     renderPhase({

@@ -126,6 +126,9 @@ async def submit_input(project_id: str, request: SubmitInputRequest):
     if request.file_content:
         user_input += f"\n\nContenido del archivo:\n{request.file_content}"
 
+    # AI failures are handled gracefully inside process_input (the input is
+    # always saved and the result carries an advisory flag), so a 500 here is
+    # reserved for truly unexpected errors only.
     try:
         result = _engine.process_input(state, project, user_input)
     except Exception as e:
@@ -134,10 +137,11 @@ async def submit_input(project_id: str, request: SubmitInputRequest):
     _persist_workflow(state)
     _persist_project(project)
 
-    # When the AI is unconfigured the input is still saved; surface the advisory
-    # so the frontend can inform the user instead of showing a hard error.
+    # When the AI is unconfigured or the call failed the input is still saved;
+    # surface the advisory so the frontend can inform the user instead of
+    # showing a hard error.
     message = "Input processed successfully"
-    if isinstance(result, dict) and result.get("ai_unconfigured"):
+    if isinstance(result, dict) and (result.get("ai_error") or result.get("ai_unconfigured")):
         message = result.get("advisory_message") or message
 
     return {

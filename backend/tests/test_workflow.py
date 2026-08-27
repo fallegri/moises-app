@@ -260,6 +260,77 @@ class TestWorkflowEngine:
             == "En mi empresa hay alta rotacion de personal"
         )
 
+    def test_process_input_degrades_gracefully_when_ai_call_fails(self, project):
+        """When a configured AI call fails, submit persists input and does not raise.
+
+        This covers the ROOT CAUSE of the reported 500: the AI is configured
+        (no AIServiceConfigError) but the provider call raises a generic
+        Exception (e.g. openai.AuthenticationError / NotFoundError /
+        APIConnectionError). process_input must catch it, keep the user's raw
+        input, mark the task completed, and flag the result with ai_error and a
+        distinct advisory message so the flow is never stuck.
+        """
+        failing_ai = MagicMock()
+        failing_ai.analyze_problem.side_effect = RuntimeError(
+            "model 'meta/llama-3.1-405b-instruct' not found"
+        )
+        # Coherence auto-validation also fails but must not block or raise.
+        failing_ai.validate_coherence.side_effect = RuntimeError("call failed")
+        kb = MagicMock()
+        kb.get_context_for_phase.return_value = ""
+        failing_engine = WorkflowEngine(ai_service=failing_ai, knowledge_base=kb)
+
+        state = failing_engine.initialize_workflow(project.id)
+
+        # No exception must escape even though the AI call raised.
+        result = failing_engine.process_input(
+            state, project, "En mi empresa hay alta rotacion de personal"
+        )
+
+        # Result flagged as an AI error (distinct from the unconfigured case).
+        assert result["ai_error"] is True
+        assert result.get("ai_unconfigured") is not True
+        assert result["ai_response"] == ""
+        assert result["advisory_message"]
+        # The advisory explains the call failed (not the missing-config message).
+        assert "no pudo procesar" in result["advisory_message"]
+        # Raw input preserved both in the result and on the project.
+        assert result["user_input"] == "En mi empresa hay alta rotacion de personal"
+        assert (
+            project.problem_description.raw_text
+            == "En mi empresa hay alta rotacion de personal"
+        )
+        assert project.problem_description.identified_problem is None
+        # Task completed and the flow can advance despite the AI failure.
+        assert state.current_tasks[0].completed is True
+        assert state.can_advance() is True
+        # Persisted in phase_data so GET /status can return it after reload.
+        assert (
+            state.phase_data[WorkflowPhase.PROBLEM_IDENTIFICATION.value] == result
+        )
+
+    def test_process_input_ai_call_failure_on_chapter_phase(self, project):
+        """A generic AI failure on a chapter phase also degrades gracefully."""
+        failing_ai = MagicMock()
+        failing_ai.generate_chapter.side_effect = ConnectionError("network down")
+        failing_ai.validate_coherence.side_effect = ConnectionError("network down")
+        kb = MagicMock()
+        kb.get_context_for_phase.return_value = ""
+        failing_engine = WorkflowEngine(ai_service=failing_ai, knowledge_base=kb)
+
+        state = failing_engine.initialize_workflow(project.id)
+        state.current_phase = WorkflowPhase.INTRODUCTION
+        state.current_tasks = failing_engine._get_phase_tasks(state.current_phase)
+
+        result = failing_engine.process_input(state, project, "Ajustes para la introduccion")
+
+        assert result["ai_error"] is True
+        assert result["ai_response"] == ""
+        assert result["generated_content"] == ""
+        assert result["user_input"] == "Ajustes para la introduccion"
+        assert state.current_tasks[0].completed is True
+        assert state.can_advance() is True
+
     def test_process_input_instrument_suggestion(self, engine, project):
         """Test processing input for instrument suggestion phase."""
         project.problem_description = ProblemDescription(
