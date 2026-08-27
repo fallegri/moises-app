@@ -10,5 +10,14 @@
     "test_quality": "pass",
     "docker_build": "skipped",
     "summary": "After the 2026-08-27-032840 review remediation: Backend 85 pytest tests pass; Frontend 33 vitest tests pass and npm run build compiles cleanly. Remediation covered all 5 review issues: (1) AI response renders for all 12 phases via a shared backend `ai_response` field with per-phase key fallbacks; (2) state_of_art advance gating folded into GET /status can_advance with an advance_blocked_reason, plus a /advance 400 error surface in the UI; (3) AI-unconfigured submit degrades gracefully (input persisted, task completed, advisory returned, no 500); (4) per-phase TextInput label/placeholder; (5) added backend and frontend tests for AI rendering on a generated_content phase, state_of_art advance gating, and AI-unconfigured degradation. Docker build skipped (host-based validation sufficient; not required by task)."
+  },
+  "review": {
+    "passes": 2,
+    "final_verdict": "APPROVED",
+    "files": [
+      ".agents/tasks/task-fix-workflow-usability/2026-08-27-032840-review.md",
+      ".agents/tasks/task-fix-workflow-usability/2026-08-27-033948-review.md"
+    ],
+    "outstanding_nonblocking": "On unconfigured-AI problem_identification, the green saved banner and amber advisory both render (cosmetic redundancy)."
   }
 }
