@@ -1,0 +1,48 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Migrate backend persistence from JSON files to PostgreSQL with SQLAlchemy (async), maintaining backward compatibility with JSON fallback when DATABASE_URL is not set. Add Procfile, runtime.txt, and CORS configuration for Railway deployment. Create frontend vercel.json for SPA routing. Create deployment documentation.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Update backend/requirements.txt: Add sqlalchemy[asyncio], asyncpg, psycopg2-binary, alembic to the existing requirements.",
+    "Step 2 - Update backend/app/core/config.py: Add database_url: Optional[str] = None field and frontend_url: Optional[str] = None field to Settings. Update cors_origins to dynamically include FRONTEND_URL env var if set.",
+    "Step 3 - Create backend/app/db/ package with __init__.py, models.py, session.py, and init_db.py. In models.py, define SQLAlchemy ORM models (ResearchProjectDB, WorkflowStateDB, AIConfigDB) that map to the Pydantic models. Use JSONB columns for complex nested fields (problem_description, suggested_instruments, refined_problems, etc). In session.py, create async engine and async sessionmaker using DATABASE_URL from settings. In init_db.py, create a function that creates all tables using metadata.create_all.",
+    "Step 4 - Create backend/app/services/persistence_postgres.py: Implement a PostgresPersistenceService class with the same interface as PersistenceService (save_project, load_project, delete_project, load_all_projects, save_workflow, load_workflow, delete_workflow, load_all_workflows) plus save_ai_config, load_ai_config methods. Use async SQLAlchemy sessions. Since existing routers use sync calls, wrap async operations with asyncio.run or use sync SQLAlchemy alternatively. Actually, since the routers call persistence directly (not awaiting), use synchronous SQLAlchemy with psycopg2-binary for simplicity. Create engine with create_engine (sync) using DATABASE_URL.",
+    "Step 5 - Refactor backend/app/services/persistence.py: Rename existing class to JsonPersistenceService. Add a factory function get_persistence_service() that returns PostgresPersistenceService if DATABASE_URL is configured, else JsonPersistenceService. Both classes must implement the same interface. Add save_ai_config/load_ai_config to JsonPersistenceService as well (moving logic from ai_config.py).",
+    "Step 6 - Update backend/app/routers/projects.py: Change _persistence = PersistenceService() to use the factory function get_persistence_service(). Keep the same in-memory dict pattern.",
+    "Step 7 - Update backend/app/routers/workflow.py: Change _persistence = PersistenceService() to use the factory function get_persistence_service().",
+    "Step 8 - Update backend/app/routers/ai_config.py: Replace direct JSON file I/O (load_ai_config/save_ai_config) with calls to the persistence service. Import get_persistence_service and use its save_ai_config/load_ai_config methods.",
+    "Step 9 - Create backend/app/db/init_db.py: Script that can be run standalone (python -m app.db.init_db) to create all tables in PostgreSQL. Import the Base metadata and call create_all.",
+    "Step 10 - Update backend/app/main.py: On startup, if DATABASE_URL is configured, call init_db to ensure tables exist. Import and run table creation in a startup event.",
+    "Step 11 - Create backend/Procfile with content: web: uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "Step 12 - Create backend/runtime.txt with content: python-3.11",
+    "Step 13 - Create frontend/vercel.json with SPA rewrite rules: rewrites from /(.*) to /index.html.",
+    "Step 14 - Create docs/DEPLOY-VERCEL-RAILWAY.md with step-by-step deployment instructions covering: NeonTech PostgreSQL setup, Railway backend deployment (env vars: DATABASE_URL, AI_API_KEY, FRONTEND_URL, etc), Vercel frontend deployment (env var: VITE_API_URL pointing to Railway URL), and local development instructions.",
+    "Step 15 - Ensure existing tests pass: The test suite uses the in-memory dict pattern and PersistenceService (JSON). Since DATABASE_URL won't be set in test environment, the factory will return JsonPersistenceService and tests should work unchanged. Verify test_integration.py imports still resolve correctly after refactoring."
+  ],
+  "acceptance_criteria": [
+    "backend/requirements.txt contains sqlalchemy, asyncpg, psycopg2-binary, alembic",
+    "backend/app/core/config.py has database_url and frontend_url fields",
+    "backend/app/db/ package exists with models.py, session.py, init_db.py",
+    "backend/app/services/persistence.py exports get_persistence_service() factory",
+    "backend/app/services/persistence_postgres.py exists with PostgresPersistenceService",
+    "When DATABASE_URL is not set, system falls back to JSON file persistence",
+    "backend/app/routers/ai_config.py uses persistence service instead of direct file I/O",
+    "backend/Procfile exists with correct uvicorn command",
+    "backend/runtime.txt exists with python-3.11",
+    "frontend/vercel.json exists with SPA rewrites",
+    "docs/DEPLOY-VERCEL-RAILWAY.md exists with deployment instructions",
+    "Running python -m pytest tests/ -v in backend/ passes all existing tests",
+    "CORS config accepts FRONTEND_URL environment variable"
+  ],
+  "verification": [
+    "cd /projects/sandbox/moises-app/backend && pip install -r requirements.txt",
+    "cd /projects/sandbox/moises-app/backend && python -m pytest tests/ -v",
+    "cd /projects/sandbox/moises-app/frontend && npm run build",
+    "Confirm backend/Procfile contains 'web: uvicorn app.main:app --host 0.0.0.0 --port $PORT'",
+    "Confirm frontend/vercel.json has rewrite rules",
+    "Confirm docs/DEPLOY-VERCEL-RAILWAY.md exists and has substantive content"
+  ],
+  "blocked_reason": null,
+  "findings": "All 75 tests pass. Python 3.9 available on host (not 3.11 but compatible). Node.js required mise install. Review fixes applied: (1) ai_config.py now delegates load/save to _persistence service, (2) PersistenceProtocol added to persistence.py, (3) pool_size=3/max_overflow=7/pool_timeout=30 added to create_engine, (4) coherence_validated changed to Column(Boolean) with bool() conversion in persistence_postgres.py, (5) _parse_datetime logs warnings on parse failure. Tests updated to monkeypatch _persistence instead of _CONFIG_FILE. The PersistenceService alias is kept in persistence.py for any external imports. Frontend build succeeds with vercel.json in place."
+}

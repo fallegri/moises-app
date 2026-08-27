@@ -8,6 +8,7 @@ import type {
   KnowledgeSearchResult,
   AIConfig,
   AIConfigUpdate,
+  SubmitInputResponse,
 } from '../types/research'
 
 const api = axios.create({
@@ -43,7 +44,7 @@ export async function getWorkflowStatus(projectId: string): Promise<WorkflowStat
   return response.data
 }
 
-export async function submitInput(projectId: string, text?: string, files?: File[]): Promise<WorkflowStatus> {
+export async function submitInput(projectId: string, text?: string, files?: File[]): Promise<SubmitInputResponse> {
   let fileContent: string | undefined
   if (files && files.length > 0) {
     // Read file contents as text to send alongside user text
@@ -160,6 +161,11 @@ export async function listVariables(projectId: string): Promise<{ variables: Var
 export async function searchKnowledge(query: string): Promise<KnowledgeSearchResult[]> {
   const response = await api.get('/api/knowledge/search', { params: { q: query } })
   return response.data.results
+}
+
+export async function getKnowledgeDocuments(): Promise<{ documents: string[]; total: number }> {
+  const response = await api.get('/api/knowledge/documents')
+  return response.data
 }
 
 export async function uploadKnowledge(file: File): Promise<{ message: string }> {

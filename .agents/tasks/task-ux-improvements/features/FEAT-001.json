@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Install frontend dependencies to establish a working baseline before making changes.",
+  "status": "completed",
+  "steps": [
+    "Run `cd frontend && npm install` to install all dependencies",
+    "Run `cd frontend && npm run build` to verify the build succeeds",
+    "Run `cd frontend && npm test` to verify existing tests pass"
+  ],
+  "acceptance_criteria": [
+    "npm install completes successfully",
+    "npm run build completes without errors",
+    "npm test passes all 10 existing tests"
+  ],
+  "verification": [
+    "Run `cd frontend && npm test` and confirm all tests pass",
+    "Run `cd frontend && npm run build` and confirm it succeeds"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline verified green. IMPORTANT: Node is NOT on the default PATH. Node 22 was installed via mise (there is a /projects/sandbox/mise.toml pinning node=22). Use `mise exec -- npm ...` (e.g. `mise exec -- npm run build`, `mise exec -- npm test`) for all frontend commands, or ensure mise shims are activated. mise install required MISE_NODE_VERIFY=false / MISE_NODE_GPG_VERIFY=false because gpg-agent is not configured in the sandbox. npm install: up to date (252 packages, 0 vulnerabilities). Build (tsc -b && vite build): succeeded. Tests: all 10 passed (WorkflowStepper.test.tsx 6, App.test.tsx 4) via vitest 4.1.10."
+}
