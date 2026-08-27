@@ -19,6 +19,24 @@ class AIServiceConfigError(Exception):
     pass
 
 
+def _normalize_base_url(base_url: str) -> str:
+    """Normalize an OpenAI-compatible base URL before passing it to the SDK.
+
+    The OpenAI SDK appends the request path (e.g. ``/chat/completions``) to the
+    configured ``base_url``. Third-party OpenAI-compatible endpoints such as
+    NVIDIA's ``https://integrate.api.nvidia.com/v1`` are sensitive to trailing
+    slashes and stray whitespace: a value like ``".../v1/"`` or ``" .../v1 "``
+    can produce a malformed request path and a "404 page not found" response
+    even when the key, model, and host are all valid.
+
+    We strip surrounding whitespace and any trailing slashes so the SDK builds
+    exactly ``{base_url}/chat/completions``.
+    """
+    if not base_url:
+        return ""
+    return base_url.strip().rstrip("/")
+
+
 def _get_runtime_ai_config() -> Optional[dict]:
     """Load runtime AI configuration from persistent storage.
 
@@ -67,7 +85,11 @@ class AIService:
         if not model:
             model = settings.ai_model
 
-        return api_key, base_url, model
+        # Normalize so the SDK builds a valid "{base_url}/chat/completions" path
+        # for OpenAI-compatible providers (e.g. NVIDIA integrate).
+        base_url = _normalize_base_url(base_url)
+
+        return (api_key or "").strip(), base_url, (model or "").strip()
 
     @property
     def api_key(self) -> str:
@@ -110,17 +132,50 @@ class AIService:
         return self._client
 
     def _call_ai(self, system_prompt: str, user_message: str) -> str:
-        """Make a call to the AI API."""
-        response = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=0.7,
-            max_tokens=4096,
-        )
+        """Make a call to the AI API.
+
+        On failure, raise an exception whose message includes the HTTP status
+        (when available) and a hint, so the caller's advisory message tells the
+        user something actionable instead of an opaque "404 page not found".
+        """
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.7,
+                max_tokens=4096,
+            )
+        except Exception as exc:  # noqa: BLE001 - re-raised with context below
+            raise RuntimeError(self._describe_call_error(exc)) from exc
         return response.choices[0].message.content or ""
+
+    def _describe_call_error(self, exc: Exception) -> str:
+        """Build a concise, actionable description of an AI call failure.
+
+        Includes the HTTP status code when the SDK exposes one and adds a hint
+        for the common misconfiguration that produces a 404 against an
+        OpenAI-compatible endpoint (a base URL that does not end in ``/v1`` or
+        an unknown model id).
+        """
+        status = getattr(exc, "status_code", None)
+        detail = str(exc).strip() or exc.__class__.__name__
+
+        parts: list[str] = []
+        if status is not None:
+            parts.append(f"HTTP {status}")
+        parts.append(detail)
+
+        message = " - ".join(parts)
+
+        if status == 404:
+            message += (
+                " (verifica que el base_url termine en /v1 y que el modelo "
+                f"'{self.model}' exista en el proveedor)"
+            )
+        return message
 
     def analyze_problem(
         self, situation_description: str, knowledge_context: str = ""

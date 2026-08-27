@@ -184,3 +184,59 @@ class TestAIService:
             service = AIService(api_key="", base_url="https://integrate.api.nvidia.com/v1")
             with pytest.raises(AIServiceConfigError, match="AI API key is not configured"):
                 _ = service.client
+
+    @pytest.mark.parametrize(
+        "raw_base_url",
+        [
+            "https://integrate.api.nvidia.com/v1/",
+            "  https://integrate.api.nvidia.com/v1  ",
+            "https://integrate.api.nvidia.com/v1///",
+            "\thttps://integrate.api.nvidia.com/v1/\n",
+        ],
+    )
+    def test_base_url_is_normalized_before_passing_to_openai(self, raw_base_url):
+        """base_url whitespace/trailing slashes are stripped before OpenAI init.
+
+        The SDK appends "/chat/completions" to base_url, so a trailing slash or
+        stray whitespace would produce a malformed path (and a 404) against an
+        OpenAI-compatible endpoint like NVIDIA integrate.
+        """
+        with patch("app.services.ai_service.OpenAI") as mock_openai_class, \
+             patch("app.services.ai_service._get_runtime_ai_config", return_value=None):
+            service = AIService(
+                api_key="key",
+                base_url=raw_base_url,
+                model="deepseek-ai/deepseek-v4-pro-0813",
+            )
+            mock_openai_class.return_value.api_key = "key"
+            mock_openai_class.return_value.base_url = "https://integrate.api.nvidia.com/v1"
+
+            # Property should expose the normalized value.
+            assert service.base_url == "https://integrate.api.nvidia.com/v1"
+
+            _ = service.client
+            mock_openai_class.assert_called_with(
+                api_key="key",
+                base_url="https://integrate.api.nvidia.com/v1",
+            )
+
+    def test_call_ai_error_includes_status_and_hint(self, ai_service):
+        """A failed chat completion surfaces the HTTP status and a 404 hint."""
+        class FakeAPIError(Exception):
+            def __init__(self, message):
+                super().__init__(message)
+                self.status_code = 404
+
+        ai_service.client.chat.completions.create.side_effect = FakeAPIError(
+            "page not found"
+        )
+
+        with pytest.raises(RuntimeError) as excinfo:
+            ai_service.analyze_problem("test input")
+
+        message = str(excinfo.value)
+        assert "HTTP 404" in message
+        assert "page not found" in message
+        # Hint mentions the /v1 base_url and the configured model.
+        assert "/v1" in message
+        assert "meta/llama-3.1-405b-instruct" in message
