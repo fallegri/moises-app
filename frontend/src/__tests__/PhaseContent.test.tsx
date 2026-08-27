@@ -72,4 +72,32 @@ describe('PhaseContent', () => {
     expect(screen.queryByText('Primero envia informacion para esta fase')).not.toBeInTheDocument()
     expect(screen.queryByText('Primero valida la coherencia de esta fase')).not.toBeInTheDocument()
   })
+
+  it('after advancing to a new phase (submitResult reset to null), shows the submit message not the coherence message', () => {
+    // Simulates the state after handleAdvance calls submitInput.reset():
+    // the current phase changed and no submit has happened in the new phase.
+    const newPhaseWorkflow: WorkflowStatus = {
+      ...baseWorkflow,
+      current_phase: 'instrument_suggestion',
+      phase_info: { title: 'Sugerencia de Instrumentos', description: 'Instrumentos' },
+      coherence_validated: false,
+      can_advance: false,
+    }
+    renderPhase({ workflow: newPhaseWorkflow, submitResult: null })
+    expect(screen.getByText('Primero envia informacion para esta fase')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Primero valida la coherencia de esta fase')
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not render the phase-1 identified-problem block after advancing (submitResult null)', () => {
+    const newPhaseWorkflow: WorkflowStatus = {
+      ...baseWorkflow,
+      current_phase: 'instrument_suggestion',
+      coherence_validated: false,
+      can_advance: false,
+    }
+    renderPhase({ workflow: newPhaseWorkflow, submitResult: null })
+    expect(screen.queryByText('Problema identificado por la IA')).not.toBeInTheDocument()
+  })
 })

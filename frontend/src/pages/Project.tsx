@@ -85,7 +85,15 @@ export default function Project() {
   }
 
   const handleAdvance = () => {
-    advanceWorkflow.mutate()
+    advanceWorkflow.mutate(undefined, {
+      onSuccess: () => {
+        // Reset the submit mutation so per-phase signals (success banner,
+        // identified-problem block, coherence button, blocked-advance message)
+        // reflect only the new current phase and not the previous one.
+        submitInput.reset()
+        setValidationResult(null)
+      },
+    })
   }
 
   const handleValidate = async () => {

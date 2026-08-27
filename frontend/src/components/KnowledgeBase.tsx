@@ -9,6 +9,7 @@ export default function KnowledgeBase() {
   const [searching, setSearching] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
+  const [uploadError, setUploadError] = useState('')
   const [documents, setDocuments] = useState<string[]>([])
 
   const loadDocuments = async () => {
@@ -40,21 +41,38 @@ export default function KnowledgeBase() {
     if (!files || files.length === 0) return
     setUploading(true)
     setUploadMessage('')
+    setUploadError('')
+    let uploaded = 0
+    let failed = 0
     try {
-      let uploaded = 0
       for (const file of Array.from(files)) {
-        await uploadKnowledge(file)
-        uploaded++
+        try {
+          await uploadKnowledge(file)
+          uploaded++
+        } catch {
+          failed++
+        }
       }
-      setUploadMessage(
-        uploaded === 1
-          ? 'Archivo subido exitosamente'
-          : `${uploaded} archivos subidos exitosamente`
-      )
-      await loadDocuments()
-    } catch {
-      setUploadMessage('Error al subir el archivo')
+      if (uploaded > 0) {
+        setUploadMessage(
+          uploaded === 1
+            ? 'Archivo subido exitosamente'
+            : `${uploaded} archivos subidos exitosamente`
+        )
+      }
+      if (failed > 0) {
+        setUploadError(
+          uploaded > 0
+            ? `${uploaded} subidos, ${failed} fallaron`
+            : failed === 1
+              ? 'Error al subir el archivo'
+              : `Error al subir ${failed} archivos`
+        )
+      }
     } finally {
+      // Always refresh the document list so successfully uploaded files show
+      // even when part of the batch failed.
+      await loadDocuments()
       setUploading(false)
       // Reset the input so selecting the same files again re-triggers onChange
       e.target.value = ''
@@ -98,13 +116,16 @@ export default function KnowledgeBase() {
             className="hidden"
             onChange={handleUpload}
             disabled={uploading}
-            accept=".md,.docx,.xlsx"
+            accept=".md,.docx,.xlsx,.txt"
             multiple
           />
         </label>
         {uploading && <span className="text-xs text-slate-400">Subiendo...</span>}
         {uploadMessage && (
           <span className="text-xs text-green-600">{uploadMessage}</span>
+        )}
+        {uploadError && (
+          <span className="text-xs text-red-600">{uploadError}</span>
         )}
       </div>
 
