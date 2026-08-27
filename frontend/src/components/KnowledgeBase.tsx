@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Search, Upload, BookOpen } from 'lucide-react'
-import { searchKnowledge, uploadKnowledge } from '../api/client'
+import { useEffect, useState } from 'react'
+import { Search, Upload, BookOpen, FileText } from 'lucide-react'
+import { searchKnowledge, uploadKnowledge, getKnowledgeDocuments } from '../api/client'
 import type { KnowledgeSearchResult } from '../types/research'
 
 export default function KnowledgeBase() {
@@ -9,6 +9,20 @@ export default function KnowledgeBase() {
   const [searching, setSearching] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadMessage, setUploadMessage] = useState('')
+  const [documents, setDocuments] = useState<string[]>([])
+
+  const loadDocuments = async () => {
+    try {
+      const data = await getKnowledgeDocuments()
+      setDocuments(data.documents)
+    } catch {
+      // Ignore errors loading the document list
+    }
+  }
+
+  useEffect(() => {
+    loadDocuments()
+  }, [])
 
   const handleSearch = async () => {
     if (!query.trim()) return
@@ -22,17 +36,28 @@ export default function KnowledgeBase() {
   }
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
     setUploading(true)
     setUploadMessage('')
     try {
-      const result = await uploadKnowledge(file)
-      setUploadMessage(result.message || 'Archivo subido exitosamente')
+      let uploaded = 0
+      for (const file of Array.from(files)) {
+        await uploadKnowledge(file)
+        uploaded++
+      }
+      setUploadMessage(
+        uploaded === 1
+          ? 'Archivo subido exitosamente'
+          : `${uploaded} archivos subidos exitosamente`
+      )
+      await loadDocuments()
     } catch {
       setUploadMessage('Error al subir el archivo')
     } finally {
       setUploading(false)
+      // Reset the input so selecting the same files again re-triggers onChange
+      e.target.value = ''
     }
   }
 
@@ -74,11 +99,34 @@ export default function KnowledgeBase() {
             onChange={handleUpload}
             disabled={uploading}
             accept=".md,.docx,.xlsx"
+            multiple
           />
         </label>
         {uploading && <span className="text-xs text-slate-400">Subiendo...</span>}
         {uploadMessage && (
           <span className="text-xs text-green-600">{uploadMessage}</span>
+        )}
+      </div>
+
+      {/* Uploaded documents list */}
+      <div className="mb-4">
+        <h4 className="text-xs font-semibold text-slate-500 uppercase mb-2">
+          Documentos cargados ({documents.length})
+        </h4>
+        {documents.length > 0 ? (
+          <ul className="space-y-1">
+            {documents.map((doc) => (
+              <li
+                key={doc}
+                className="flex items-center gap-2 text-sm text-slate-600 p-2 bg-slate-50 rounded-lg"
+              >
+                <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <span className="truncate">{doc}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-slate-400">Aun no se han cargado documentos.</p>
         )}
       </div>
 

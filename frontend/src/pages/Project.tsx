@@ -147,21 +147,24 @@ export default function Project() {
               onSelectOption={handleSelectOption}
               onAdvance={handleAdvance}
               isSubmitting={isSubmitting}
+              submitResult={submitInput.data}
             />
           )}
 
-          {/* Validation */}
-          <div className="mt-6 space-y-4">
-            <button
-              onClick={handleValidate}
-              disabled={validateCoherence.isPending}
-              className="btn-secondary flex items-center gap-2 text-sm"
-            >
-              {validateCoherence.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              Validar Coherencia
-            </button>
-            {validationResult && <CoherenceValidation result={validationResult} />}
-          </div>
+          {/* Validation - only available after the user has submitted input */}
+          {submitInput.isSuccess && (
+            <div className="mt-6 space-y-4">
+              <button
+                onClick={handleValidate}
+                disabled={validateCoherence.isPending}
+                className="btn-secondary flex items-center gap-2 text-sm"
+              >
+                {validateCoherence.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Validar Coherencia
+              </button>
+              {validationResult && <CoherenceValidation result={validationResult} />}
+            </div>
+          )}
 
           {/* Knowledge Base */}
           <div className="mt-8">

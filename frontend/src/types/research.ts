@@ -35,6 +35,12 @@ export interface WorkflowStatus {
   can_advance: boolean
 }
 
+export interface SubmitInputResponse {
+  phase: string
+  result: Record<string, any>
+  message: string
+}
+
 export interface ResearchProject {
   id: string
   title: string

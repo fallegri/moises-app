@@ -1,5 +1,5 @@
-import { Loader2 } from 'lucide-react'
-import type { WorkflowStatus } from '../types/research'
+import { Loader2, CheckCircle2, Info } from 'lucide-react'
+import type { WorkflowStatus, SubmitInputResponse } from '../types/research'
 import TextInput from './TextInput'
 import FileUpload from './FileUpload'
 import StateOfArtMatrix from './StateOfArtMatrix'
@@ -13,6 +13,7 @@ interface PhaseContentProps {
   onSelectOption: (index: number) => void
   onAdvance: () => void
   isSubmitting: boolean
+  submitResult?: SubmitInputResponse | null
 }
 
 export default function PhaseContent({
@@ -23,8 +24,23 @@ export default function PhaseContent({
   onSelectOption: _onSelectOption,
   onAdvance,
   isSubmitting,
+  submitResult,
 }: PhaseContentProps) {
   const phase = workflow.current_phase
+  const identifiedProblem =
+    submitResult?.result && typeof submitResult.result.identified_problem === 'string'
+      ? submitResult.result.identified_problem
+      : ''
+
+  // Contextual message explaining why the advance button is disabled
+  let advanceBlockedMessage = ''
+  if (!workflow.can_advance) {
+    if (submitResult && !workflow.coherence_validated) {
+      advanceBlockedMessage = 'Primero valida la coherencia de esta fase'
+    } else if (!submitResult) {
+      advanceBlockedMessage = 'Primero envia informacion para esta fase'
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -79,8 +95,28 @@ export default function PhaseContent({
         <FileUpload onFilesAccepted={onSubmitFiles} disabled={isSubmitting} />
       </div>
 
+      {/* Submit success confirmation */}
+      {submitResult && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+            <p className="text-sm font-medium text-green-700">
+              {submitResult.message || 'Informacion guardada exitosamente'}
+            </p>
+          </div>
+          {identifiedProblem && (
+            <div className="rounded-lg border border-green-200 bg-white p-3">
+              <h4 className="text-xs font-semibold text-slate-500 uppercase mb-1">
+                Problema identificado por la IA
+              </h4>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{identifiedProblem}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Advance Button */}
-      <div className="flex justify-end pt-4">
+      <div className="flex flex-col items-end gap-2 pt-4">
         <button
           onClick={onAdvance}
           disabled={isSubmitting || !workflow.can_advance}
@@ -89,6 +125,12 @@ export default function PhaseContent({
           {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
           Avanzar a la siguiente fase
         </button>
+        {advanceBlockedMessage && (
+          <p className="flex items-center gap-1.5 text-sm text-amber-600">
+            <Info className="w-4 h-4 flex-shrink-0" />
+            {advanceBlockedMessage}
+          </p>
+        )}
       </div>
     </div>
   )
