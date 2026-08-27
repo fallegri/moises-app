@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send, Loader2 } from 'lucide-react'
 
 interface TextInputProps {
   onSubmit: (text: string) => void
@@ -50,8 +50,12 @@ export default function TextInput({
           disabled={disabled || !text.trim()}
           className="btn-primary flex items-center gap-2 text-sm"
         >
-          <Send className="w-4 h-4" />
-          Enviar
+          {disabled ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          {disabled ? 'Enviando...' : 'Enviar'}
         </button>
       </div>
     </div>

@@ -22,10 +22,25 @@ from app.services.knowledge_base import KnowledgeBaseService
 # Advisory message shown when a phase is submitted but no AI is configured, so
 # the flow keeps working (input is persisted) instead of hard-failing with a 500.
 AI_UNCONFIGURED_MESSAGE = (
-    "La IA no esta configurada, por lo que no se genero una respuesta "
-    "automatica. Su texto se guardo correctamente. Configure la IA en el panel "
-    "de ajustes para obtener el analisis, o continue a la siguiente fase."
+    "Configura tu API Key en Configuracion para que la IA analice tu "
+    "informacion. Tu texto se guardo."
 )
+
+
+def _ai_error_message(error: Exception) -> str:
+    """Build the advisory message shown when a configured AI call fails.
+
+    Keeps the reason short so the UI stays readable, and makes clear the user's
+    information was saved and that they can retry or continue.
+    """
+    reason = str(error).strip() or error.__class__.__name__
+    # Keep the reason concise so a long provider traceback does not flood the UI.
+    if len(reason) > 200:
+        reason = reason[:197] + "..."
+    return (
+        "La IA no pudo procesar la solicitud: "
+        f"{reason}. Tu informacion se guardo. Puedes reintentar o continuar."
+    )
 
 
 class WorkflowEngine:
@@ -341,6 +356,29 @@ class WorkflowEngine:
         }
         return phase_tasks.get(phase, [])
 
+    def _safe_ai_call(self, func, *args, **kwargs) -> tuple[str, bool, Optional[Exception]]:
+        """Invoke an AI service method and never let its failure propagate.
+
+        The AI layer can fail in two distinct ways once we start calling the
+        provider:
+
+        1. AIServiceConfigError: no API key configured. The user just needs to
+           set up the AI; their input is still saved.
+        2. Any other Exception (openai.AuthenticationError, NotFoundError,
+           APIConnectionError, RateLimitError, APIError, timeouts, etc.): the
+           AI IS configured but the call failed. We must still save the input.
+
+        Returns a tuple ``(response_text, ai_unconfigured, ai_error)`` where
+        exactly one of the flags may be set. On success the flags are
+        ``(text, False, None)``. On failure the text is an empty string.
+        """
+        try:
+            return func(*args, **kwargs), False, None
+        except AIServiceConfigError:
+            return "", True, None
+        except Exception as error:  # noqa: BLE001 - any provider failure must degrade gracefully
+            return "", False, error
+
     def process_input(
         self,
         state: WorkflowState,
@@ -350,29 +388,33 @@ class WorkflowEngine:
         """Process user input for the current phase.
 
         Returns a dict with 'result' (AI response) and updated state/project.
+
+        AI failures NEVER propagate: the user's raw input is always persisted,
+        the phase task(s) are marked completed and an advisory flag is attached
+        so the frontend can inform the user and the flow can still advance.
         """
         phase = state.current_phase
         knowledge_context = self.knowledge_base.get_context_for_phase(phase.value)
 
         result: dict[str, Any] = {}
-        # Tracks whether the AI produced a response. When False (AI unconfigured)
-        # we still persist the user's input and surface an advisory message so
-        # the flow is never stuck. The key that carries the displayable AI text
-        # per phase; `ai_response` is a shared display field the frontend can
-        # always read regardless of phase.
+        # Tracks how the AI call resolved. When the AI is unconfigured or the
+        # call fails we still persist the user's input and surface an advisory
+        # message so the flow is never stuck. `ai_response` is a shared display
+        # field the frontend can always read regardless of phase.
         ai_unconfigured = False
+        ai_error: Optional[Exception] = None
 
         if phase == WorkflowPhase.PROBLEM_IDENTIFICATION:
-            try:
-                ai_response = self.ai_service.analyze_problem(user_input, knowledge_context)
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.analyze_problem, user_input, knowledge_context
+            )
+            # Persist the raw input even when the AI could not identify a
+            # problem, so the written text survives navigation and reload.
             project.problem_description = ProblemDescription(
                 raw_text=user_input,
-                identified_problem=ai_response,
+                identified_problem=ai_response or None,
             )
-            result = {"identified_problem": ai_response}
+            result = {"identified_problem": ai_response, "saved_text": user_input}
 
         elif phase == WorkflowPhase.INSTRUMENT_SUGGESTION:
             problem = (
@@ -380,13 +422,11 @@ class WorkflowEngine:
                 if project.problem_description
                 else user_input
             )
-            try:
-                ai_response = self.ai_service.suggest_instruments(
-                    problem or user_input, knowledge_context
-                )
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.suggest_instruments,
+                problem or user_input,
+                knowledge_context,
+            )
             result = {"suggested_instruments": ai_response, "uploaded_data": user_input}
 
         elif phase == WorkflowPhase.PROBLEM_REFINEMENT:
@@ -395,13 +435,12 @@ class WorkflowEngine:
                 if project.problem_description
                 else ""
             )
-            try:
-                ai_response = self.ai_service.refine_problem(
-                    problem or "", user_input, knowledge_context
-                )
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.refine_problem,
+                problem or "",
+                user_input,
+                knowledge_context,
+            )
             result = {"refined_formulations": ai_response}
 
         elif phase == WorkflowPhase.RESEARCH_QUESTION:
@@ -410,26 +449,24 @@ class WorkflowEngine:
                 if project.selected_problem
                 else user_input
             )
-            try:
-                ai_response = self.ai_service.generate_research_questions(
-                    selected, knowledge_context
-                )
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.generate_research_questions,
+                selected,
+                knowledge_context,
+            )
             result = {"research_questions": ai_response}
 
         elif phase == WorkflowPhase.STATE_OF_ART:
             # Handle state-of-art phase: user submits study data
             # Parse the input as a study entry and add to the project's state_of_art
             project_context = self._build_project_context(project)
-            try:
-                ai_response = self.ai_service.generate_chapter(
-                    phase.value, user_input, project_context, knowledge_context
-                )
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.generate_chapter,
+                phase.value,
+                user_input,
+                project_context,
+                knowledge_context,
+            )
             result = {
                 "generated_content": ai_response,
                 "studies_count": len(project.state_of_art.studies),
@@ -443,13 +480,13 @@ class WorkflowEngine:
         else:
             # For chapter generation phases
             project_context = self._build_project_context(project)
-            try:
-                ai_response = self.ai_service.generate_chapter(
-                    phase.value, user_input, project_context, knowledge_context
-                )
-            except AIServiceConfigError:
-                ai_unconfigured = True
-                ai_response = ""
+            ai_response, ai_unconfigured, ai_error = self._safe_ai_call(
+                self.ai_service.generate_chapter,
+                phase.value,
+                user_input,
+                project_context,
+                knowledge_context,
+            )
             result = {"generated_content": ai_response}
 
         # Always persist the user's raw submission so nothing is lost, even when
@@ -457,12 +494,18 @@ class WorkflowEngine:
         result["user_input"] = user_input
 
         # Shared display field the frontend renders for ANY phase. When the AI
-        # is unconfigured, carry the advisory message so the user understands
-        # why there is no analysis and that their input was still saved.
+        # is unconfigured or the call failed, carry the advisory message so the
+        # user understands why there is no analysis and that their input was
+        # still saved.
         if ai_unconfigured:
             result["ai_response"] = ""
             result["ai_unconfigured"] = True
+            result["ai_error"] = True
             result["advisory_message"] = AI_UNCONFIGURED_MESSAGE
+        elif ai_error is not None:
+            result["ai_response"] = ""
+            result["ai_error"] = True
+            result["advisory_message"] = _ai_error_message(ai_error)
         else:
             result["ai_response"] = ai_response
 
