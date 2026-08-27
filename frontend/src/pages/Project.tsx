@@ -96,6 +96,14 @@ export default function Project() {
     })
   }
 
+  // Surface the backend detail if /advance rejects (e.g. the state_of_art
+  // 6-studies rule), so the user understands why the flow did not advance
+  // instead of the button appearing to do nothing.
+  const advanceError = advanceWorkflow.error as
+    | { response?: { data?: { detail?: string } } }
+    | null
+  const advanceErrorMessage = advanceError?.response?.data?.detail ?? null
+
   const handleValidate = async () => {
     const result = await validateCoherence.mutateAsync()
     setValidationResult(result)
@@ -156,6 +164,7 @@ export default function Project() {
               onAdvance={handleAdvance}
               isSubmitting={isSubmitting}
               submitResult={submitInput.data}
+              advanceError={advanceErrorMessage}
             />
           )}
 

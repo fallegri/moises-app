@@ -68,7 +68,29 @@ def _get_or_create_workflow(project_id: str) -> WorkflowState:
 async def get_workflow_status(project_id: str):
     """Get current workflow status for a project."""
     state = _get_or_create_workflow(project_id)
+    project = _projects[project_id]
     phase_info = _engine.get_phase_description(state.current_phase)
+
+    # Base advancement gate: current phase submitted and not the last phase.
+    can_advance = state.can_advance()
+    advance_blocked_reason: Optional[str] = None
+
+    if not can_advance and not state._current_phase_submitted():
+        advance_blocked_reason = "Primero envia informacion para esta fase"
+
+    # The state_of_art phase has an extra constraint (>= 6 studies, or the
+    # 'no more studies' flag) enforced by /advance. Fold it into can_advance so
+    # the button does not enable when advancing would 400, and explain why.
+    if (
+        can_advance
+        and state.current_phase == WorkflowPhase.STATE_OF_ART
+        and not _engine.can_advance_state_of_art(project)
+    ):
+        can_advance = False
+        advance_blocked_reason = (
+            "Para avanzar, registre al menos 6 investigaciones similares o "
+            "marque 'no hay mas investigaciones encontradas'."
+        )
 
     return {
         "project_id": project_id,
@@ -89,7 +111,8 @@ async def get_workflow_status(project_id: str):
         "phase_result": state.phase_data.get(state.current_phase.value),
         "coherence_validated": state.coherence_validated,
         "last_validation_message": state.last_validation_message,
-        "can_advance": state.can_advance(),
+        "can_advance": can_advance,
+        "advance_blocked_reason": advance_blocked_reason,
     }
 
 
@@ -110,10 +133,17 @@ async def submit_input(project_id: str, request: SubmitInputRequest):
 
     _persist_workflow(state)
     _persist_project(project)
+
+    # When the AI is unconfigured the input is still saved; surface the advisory
+    # so the frontend can inform the user instead of showing a hard error.
+    message = "Input processed successfully"
+    if isinstance(result, dict) and result.get("ai_unconfigured"):
+        message = result.get("advisory_message") or message
+
     return {
         "phase": state.current_phase.value,
         "result": result,
-        "message": "Input processed successfully",
+        "message": message,
     }
 
 

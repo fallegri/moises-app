@@ -36,6 +36,7 @@ export interface WorkflowStatus {
   coherence_validated: boolean
   last_validation_message?: string | null
   can_advance: boolean
+  advance_blocked_reason?: string | null
 }
 
 export interface SubmitInputResponse {

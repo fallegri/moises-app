@@ -205,6 +205,61 @@ class TestWorkflowEngine:
 
         assert new_phase == WorkflowPhase.INSTRUMENT_SUGGESTION
 
+    def test_process_input_sets_shared_ai_response_for_generated_content_phase(
+        self, engine, project
+    ):
+        """A generated_content phase exposes the shared `ai_response` display field.
+
+        The frontend renders `ai_response` for every phase; verify it is populated
+        (and equals the chapter text) for a chapter-generation phase, not only for
+        problem_identification.
+        """
+        state = engine.initialize_workflow(project.id)
+        state.current_phase = WorkflowPhase.INTRODUCTION
+        state.current_tasks = engine._get_phase_tasks(state.current_phase)
+
+        result = engine.process_input(state, project, "Ajustes para la introduccion")
+
+        assert result["generated_content"] == "Capitulo generado con formato APA 7."
+        # Shared display field mirrors the per-phase content.
+        assert result["ai_response"] == "Capitulo generado con formato APA 7."
+        assert result.get("ai_unconfigured") is not True
+
+    def test_process_input_degrades_gracefully_when_ai_unconfigured(self, project):
+        """When the AI is unconfigured, submit persists input and does not raise.
+
+        The AI call raises AIServiceConfigError; process_input must catch it,
+        keep the user's raw input, mark the task completed, and flag the result
+        with an advisory message so the flow is never stuck.
+        """
+        from app.services.ai_service import AIServiceConfigError
+
+        unconfigured_ai = MagicMock()
+        unconfigured_ai.analyze_problem.side_effect = AIServiceConfigError("no key")
+        unconfigured_ai.validate_coherence.side_effect = AIServiceConfigError("no key")
+        kb = MagicMock()
+        kb.get_context_for_phase.return_value = ""
+        degraded_engine = WorkflowEngine(ai_service=unconfigured_ai, knowledge_base=kb)
+
+        state = degraded_engine.initialize_workflow(project.id)
+        result = degraded_engine.process_input(
+            state, project, "En mi empresa hay alta rotacion de personal"
+        )
+
+        # No exception; input preserved and result flagged as unconfigured.
+        assert result["ai_unconfigured"] is True
+        assert result["ai_response"] == ""
+        assert result["user_input"] == "En mi empresa hay alta rotacion de personal"
+        assert result["advisory_message"]
+        # Task completed so the flow can still advance (bug #5 keeps working).
+        assert state.current_tasks[0].completed is True
+        assert state.can_advance() is True
+        # Raw input preserved on the project.
+        assert (
+            project.problem_description.raw_text
+            == "En mi empresa hay alta rotacion de personal"
+        )
+
     def test_process_input_instrument_suggestion(self, engine, project):
         """Test processing input for instrument suggestion phase."""
         project.problem_description = ProblemDescription(

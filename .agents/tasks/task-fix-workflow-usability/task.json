@@ -1,7 +1,14 @@
 {
   "task_id": "task-fix-workflow-usability",
   "task_description": "Fix the guided research workflow so it works end to end and is clear at each step: (1) specific/actionable per-phase descriptions and instructions, (2) persistent visible confirmation and AI response after submit, (3) clear explanation of the optional file upload per phase, (4) the 'advance to next phase' button actually enables, (5) the phase task checkbox marks after submitting. Backend marks tasks complete + persists AI response + makes coherence advisory (non-deadlocking); frontend consumes persisted status so state survives re-renders/reloads.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "After the 2026-08-27-032840 review remediation: Backend 85 pytest tests pass; Frontend 33 vitest tests pass and npm run build compiles cleanly. Remediation covered all 5 review issues: (1) AI response renders for all 12 phases via a shared backend `ai_response` field with per-phase key fallbacks; (2) state_of_art advance gating folded into GET /status can_advance with an advance_blocked_reason, plus a /advance 400 error surface in the UI; (3) AI-unconfigured submit degrades gracefully (input persisted, task completed, advisory returned, no 500); (4) per-phase TextInput label/placeholder; (5) added backend and frontend tests for AI rendering on a generated_content phase, state_of_art advance gating, and AI-unconfigured degradation. Docker build skipped (host-based validation sufficient; not required by task)."
+  }
 }
