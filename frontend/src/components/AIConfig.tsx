@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
-import { Settings, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
+import { Settings, Eye, EyeOff, Check, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react'
 import { getAIConfig, updateAIConfig } from '../api/client'
 import type { AIConfig as AIConfigType } from '../types/research'
+
+// Endpoint comun a todos los modelos de NVIDIA. El usuario no necesita editarlo.
+const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 
 export default function AIConfig() {
   const [config, setConfig] = useState<AIConfigType | null>(null)
   const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState('')
+  const [baseUrl, setBaseUrl] = useState(NVIDIA_BASE_URL)
   const [model, setModel] = useState('')
   const [showKey, setShowKey] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -22,7 +26,8 @@ export default function AIConfig() {
     try {
       const data = await getAIConfig()
       setConfig(data)
-      setBaseUrl(data.base_url)
+      // Default to the NVIDIA endpoint if the backend has no base URL stored.
+      setBaseUrl(data.base_url || NVIDIA_BASE_URL)
       setModel(data.model)
     } catch {
       setMessage({ type: 'error', text: 'Error al cargar la configuracion' })
@@ -37,11 +42,14 @@ export default function AIConfig() {
     try {
       const updateData: Record<string, string> = {}
       if (apiKey) updateData.api_key = apiKey
-      if (baseUrl) updateData.base_url = baseUrl
+      // Never send an empty base URL: fall back to the NVIDIA endpoint so the
+      // stored default is never wiped.
+      updateData.base_url = baseUrl.trim() || NVIDIA_BASE_URL
       if (model) updateData.model = model
 
       const updated = await updateAIConfig(updateData)
       setConfig(updated)
+      setBaseUrl(updated.base_url || NVIDIA_BASE_URL)
       setApiKey('')
       setMessage({ type: 'success', text: 'Configuracion guardada exitosamente' })
     } catch {
@@ -89,10 +97,33 @@ export default function AIConfig() {
         )}
       </div>
 
+      {/* Helper note: todos los modelos usan el endpoint de NVIDIA */}
+      <p className="mb-4 text-xs text-slate-500 bg-slate-50 rounded-lg p-2">
+        Todos los modelos usan el endpoint de NVIDIA. Solo necesitas indicar el
+        modelo y tu API Key de NVIDIA.
+      </p>
+
+      {/* Model field (prominent) */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold text-slate-700 mb-1">
+          Modelo
+        </label>
+        <input
+          type="text"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder="deepseek-ai/deepseek-v4-pro-0813"
+          className="input-field w-full"
+        />
+        <p className="mt-1 text-xs text-slate-400">
+          Ejemplos: deepseek-ai/deepseek-v4-pro-0813, meta/llama-3.1-405b-instruct
+        </p>
+      </div>
+
       {/* API Key field */}
       <div className="mb-3">
         <label className="block text-xs font-medium text-slate-600 mb-1">
-          API Key
+          API Key de NVIDIA
         </label>
         <div className="relative">
           <input
@@ -112,38 +143,44 @@ export default function AIConfig() {
         </div>
       </div>
 
-      {/* Base URL field */}
-      <div className="mb-3">
-        <label className="block text-xs font-medium text-slate-600 mb-1">
-          Base URL
-        </label>
-        <input
-          type="text"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          placeholder="https://integrate.api.nvidia.com/v1"
-          className="input-field w-full"
-        />
-      </div>
-
-      {/* Model field */}
+      {/* Advanced options: Base URL (secondary, hidden by default) */}
       <div className="mb-4">
-        <label className="block text-xs font-medium text-slate-600 mb-1">
-          Modelo
-        </label>
-        <input
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="meta/llama-3.1-405b-instruct"
-          className="input-field w-full"
-        />
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+        >
+          {showAdvanced ? (
+            <ChevronDown className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5" />
+          )}
+          Opciones avanzadas
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3">
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Base URL
+            </label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={NVIDIA_BASE_URL}
+              className="input-field w-full"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Endpoint de NVIDIA comun a todos los modelos. Solo cambialo si sabes lo que haces.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Save button */}
       <button
         onClick={handleSave}
-        disabled={saving || (!apiKey && !baseUrl && !model)}
+        disabled={saving || (!apiKey && !model)}
         className="btn-primary w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {saving ? 'Guardando...' : 'Guardar Configuracion'}
